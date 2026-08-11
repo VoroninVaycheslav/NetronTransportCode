@@ -78,9 +78,7 @@ module process_manager
         select case(type_of_process)
         case(1)
             ! Рассеяние
-            if(cur_netron_data%energy > 1) then
-                new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
-            end if
+            new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
         case(2)
             ! Поглощение
             new_netron_data = get_absorption(cur_netron_data)
