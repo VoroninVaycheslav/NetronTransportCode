@@ -64,34 +64,65 @@ module math_operation
         real, intent(in) :: mass_env
         m = mass_env
     end subroutine get_mass
-    function found_number_with_table(num, table_search, table_res,count_point) result(res)
-        real, intent(in) :: num                                             ! Вероятность подаваяемяа для поиска скорости
-        integer, intent(in) :: count_point                                  ! Количество точек в сетке
-        real, dimension(count_point), intent(in) :: table_search            ! Столбец скорсотей
-        real, dimension(count_point), intent(in) :: table_res               ! Столбец вероятностей     
-        real :: res     
 
-        real :: l_lim_v,r_lim_v,l_lim_d,r_lim_d           
-        integer :: left, right, mid                                               ! Найденная скорость
-        left = 1
-        right = count_point
-        
-        ! Бинарный поиск
-        do while (right - left > 1)
-            mid = (left + right) / 2
-            if (num <= table_search(mid)) then
-                right = mid
-            else
-                left = mid
-            end if
-        end do
 
-        ! Линейная интерполяция
-        l_lim_v = table_res(left)
-        r_lim_v = table_res(right)
-        l_lim_d = table_search(left)
-        r_lim_d = table_search(right)
+
+    function found_number_with_table(num, table_search, table_res, count_point) result(res)
+    real, intent(in) :: num
+    integer, intent(in) :: count_point
+    real, dimension(count_point), intent(in) :: table_search
+    real, dimension(count_point), intent(in) :: table_res
+    real :: res
+
+    real :: l_lim_v, r_lim_v, l_lim_d, r_lim_d
+    integer :: left, right, mid
+
+    ! === ЗАЩИТА ОТ ПУСТЫХ ТАБЛИЦ ===
+    if (count_point < 2) then
+        if (count_point == 1) then
+            res = table_res(1)
+            return
+        else
+            print *, "ERROR: count_point =", count_point
+            stop
+        end if
+    end if
+
+    ! === ЗАЩИТА ОТ ВЫХОДА ЗА ГРАНИЦЫ ===
+    if (num <= table_search(1)) then
+        res = table_res(1)
+        return
+    end if
+
+    if (num >= table_search(count_point)) then
+        res = table_res(count_point)
+        return
+    end if
+
+    ! === БИНАРНЫЙ ПОИСК ===
+    left = 1
+    right = count_point
+
+    do while (right - left > 1)
+        mid = (left + right) / 2
+        if (num <= table_search(mid)) then
+            right = mid
+        else
+            left = mid
+        end if
+    end do
+
+    ! === ИНТЕРПОЛЯЦИЯ ===
+    l_lim_v = table_res(left)
+    r_lim_v = table_res(right)
+    l_lim_d = table_search(left)
+    r_lim_d = table_search(right)
+
+    if (abs(r_lim_d - l_lim_d) < 1.0e-30) then
+        res = (l_lim_v + r_lim_v) / 2.0
+    else
         res = l_lim_v + (r_lim_v - l_lim_v) * (num - l_lim_d) / (r_lim_d - l_lim_d)
-            
-    end function found_number_with_table
+    end if
+
+end function found_number_with_table
 end module math_operation

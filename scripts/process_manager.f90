@@ -77,8 +77,11 @@ module process_manager
         ! Выполнение выбранного процесса
         select case(type_of_process)
         case(1)
-            ! Рассеяние
-            new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
+            ! Рассеяние с дыигвющимися ядрами
+             new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie))
+            
+            ! Рассеяние с покоящимися ядрами
+             !new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
         case(2)
             ! Поглощение
             new_netron_data = get_absorption(cur_netron_data)

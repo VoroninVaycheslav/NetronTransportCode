@@ -6,7 +6,8 @@ program bilder
 
     implicit none
     integer :: N = 100000
-    integer i
+    integer i,r
+    real integ
     real :: start_time, end_time, elapsed_time
     real :: dispersion = 0
     real :: age_of_netron = 0
@@ -14,6 +15,7 @@ program bilder
     integer :: averageCollision = 0
     integer :: countLivedNetron = 0
     real :: lifeTime = 0
+    integer :: count_point = 500  
     type(netron_data),allocatable :: netrons(:)
     type(enviroment) env
 
@@ -26,6 +28,19 @@ program bilder
 
     
     call load_cross_section_fron_file(2,directory_of_cross_section_data,env)
+
+    do i = 1,2
+        ! Выделяем место под массивы
+            call get_mass(env%different_tipe_of_nuclear(i)%mass_of_nuclear * 1.660539e-27)
+            allocate(env%different_tipe_of_nuclear(i)%coordinate_distribution_grid(count_point))
+            allocate(env%different_tipe_of_nuclear(i)%coordinate_velocity_grid(count_point))
+            env%different_tipe_of_nuclear(i)%count_point_vel_distr=count_point
+            do r = 0, 2
+                integ = integrate_function(maxwell_speed_distribution,0.0,real(r),10000)
+                env%different_tipe_of_nuclear(i)%coordinate_distribution_grid(r) = integ
+                env%different_tipe_of_nuclear(i)%coordinate_velocity_grid(r) = r
+            end do
+        end do
 
     netrons = give_random_direction(N,100.0)
     call cpu_time(start_time)
