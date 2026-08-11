@@ -80,8 +80,6 @@ module process_manager
             ! Рассеяние
             if(cur_netron_data%energy > 1) then
                 new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
-            else
-                new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie))
             end if
         case(2)
             ! Поглощение
@@ -96,50 +94,30 @@ module process_manager
         
     end function collision_controller
     ! Создаем нейтроны со случайными направлениями движения и одинаковой энергией
-    function give_random_direction_and_energy(N) result(new_netron_d)
+
+    function give_random_direction(N, E) result(new_netron_d)
         integer, intent(in) :: N                        !Количество нейтронов       IN
+        real, intent(in):: E
         type(netron_data) :: new_netron_d(N)            !Созданный нейтрон          OUT
-        real E
-        real integ  
         real :: T, Fi
         integer :: i
-        real random_energy
-        real random_energy_distribution
-        real, dimension(:), allocatable ::coordinate_distribution_grid      ! Сетка по плотности вероятности
-        real, dimension(:), allocatable ::coordinate_velocity_grid          ! Сетка по скоростям
-
-
-        integer :: count_point = 100                                      ! количество нужных точек для сетки
-    
-        ! Выделяем место под массивы
-        allocate(coordinate_distribution_grid(count_point))
-        allocate(coordinate_velocity_grid(count_point))
-
-        do i = 0, count_point
-            E = i*8/count_point
-            integ = integrate_function(maxwell_distribution,0.0,E,10000)
-            coordinate_distribution_grid(i) = integ
-            coordinate_velocity_grid(i) = E
-        end do
 
         do i = 1, N
             !Задаем случайное напрваление движения
             T = get_random_in_range(0.0, 3.14159)
             Fi = get_random_in_range(0.0, 6.28318)
-            random_energy_distribution = get_random_in_range(0.0, 1.0)
-            new_netron_d(i)%dir%x = sin(T) * cos(Fi)
-            new_netron_d(i)%dir%y = sin(T) * sin(Fi)
-            new_netron_d(i)%dir%z = cos(T)
-            
+            new_netron_d(i)%dir(1) = sin(T) * cos(Fi)
+            new_netron_d(i)%dir(2) = sin(T) * sin(Fi)
+            new_netron_d(i)%dir(3) = cos(T)
+            new_netron_d(i)%energy = E
+  
             !Обнуляем остальные характеристики нейтрона
-            new_netron_d(i)%energy = found_number_with_table(random_energy_distribution,coordinate_distribution_grid,coordinate_velocity_grid,count_point)*1000000
             new_netron_d(i)%speed = 1.38e4 * sqrt(new_netron_d(i)%energy)
-            new_netron_d(i)%pos = vector3(0.0, 0.0, 0.0)
+            new_netron_d(i)%pos = [0.0, 0.0, 0.0]
             new_netron_d(i)%life_time = 0.0
             new_netron_d(i)%count_collision = 0
             new_netron_d(i)%is_died = .False.
-            
         end do
-    end function give_random_direction_and_energy
+    end function give_random_direction
 
 end module process_manager

@@ -38,8 +38,8 @@ module data_type
 
     !информация о нейтроне
     type :: netron_data
-        type(vector3) :: dir                                                ! Направление движения
-        type(vector3) :: pos = vector3(0,0,0)                               ! Расположение в пространстве
+        real :: dir(3)                                                      ! Направление движения
+        real :: pos(3)                                                      ! Расположение в пространстве
         real :: energy                                                      ! Энергия нейтрона, eV
         real :: speed                                                       ! Скорость нейтрона
         real :: life_time = 0                                               ! Время рассеяния
