@@ -24,13 +24,16 @@ module process_manager
         real :: sum_val
         real :: p1, p2
         integer :: i
-        
+
+        total_mac_cross_section = 0
         
         ! Выделяем память для массива макроскопического сечения
         allocate(total_mac_current_cross_section_mas(env%count_nuclear))
         
         ! Расчет макросечений для каждого типа ядра
         do i = 1, env%count_nuclear
+            
+            !print*, cur_netron_data%energy
             total_mac_current_cross_section_mas(i) = found_cross_section_from_energy(cur_netron_data%energy, &
                 env%different_tipe_of_nuclear(i),1)*env%different_tipe_of_nuclear(i)%nuclear_dencity
         end do
@@ -49,7 +52,7 @@ module process_manager
         end do
         
         if (type_of_nuclie < 1 .or. type_of_nuclie > env%count_nuclear) then
-            print *, "ОШИБКА: Неверный тип ядра после выбора: ", type_of_nuclie, p1
+            print *, "ОШИБКА: Неверный тип ядра после выбора: ", type_of_nuclie, p1,total_mac_current_cross_section_mas
             new_netron_data = cur_netron_data
             deallocate(total_mac_current_cross_section_mas)
             return
@@ -78,15 +81,15 @@ module process_manager
         select case(type_of_process)
         case(1)
             ! Рассеяние с дыигвющимися ядрами
-             new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie))
+            ! new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie))
             
             ! Рассеяние с покоящимися ядрами
-             !new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
+            new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
         case(2)
             ! Поглощение
             new_netron_data = get_absorption(cur_netron_data)
         case default
-            print *, "ВНИМАНИЕ: Неизвестный тип процесса: ", type_of_process, p2
+            print *, "ВНИМАНИЕ: Неизвестный тип процесса: ", type_of_process, p2, cur_netron_data%energy
             new_netron_data = cur_netron_data
         end select
         

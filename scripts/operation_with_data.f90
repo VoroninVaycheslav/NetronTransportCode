@@ -33,7 +33,7 @@ module operation_with_data
         r_lim_e = nuclear_d%energy_point_in_table(right)
         ! Вычисление сечения на отрезке
         current_section = l_lim_cs + (r_lim_cs - l_lim_cs) * (current_energy - l_lim_e) / (r_lim_e - l_lim_e)
-            
+
     end function found_cross_section_from_energy
 
     !Загружаем все данные о ядрах для серды из файлов
