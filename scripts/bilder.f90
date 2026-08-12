@@ -4,13 +4,16 @@ program bilder
     use operation_with_data
     use process_manager
     use DoplerTrearmentNJOY
+    use MCNPconfigOTF
+    use Dopler_MCNP_OTF
+
     implicit none
 
     integer :: N = 100000
     integer i,r,j
     integer :: tem = 1200
     real integ,alpha
-    integer :: typeWork = 0  ! 0 - моделирование, 1 - генерация таблиц сечений
+    integer :: typeWork = 2  ! 0 - моделирование, 1 - генерация таблиц сечений
     real :: start_time, end_time, elapsed_time
     real :: dispersion = 0
     real :: age_of_netron = 0
@@ -21,8 +24,9 @@ program bilder
     integer :: count_point = 500  
     type(netron_data),allocatable :: netrons(:)
     type(enviroment) env
-    real :: k = 8.617333262e-5
+    type(otf_config_type) conf
 
+    real, allocatable :: e_uniq_grid(:,:),Tgrid(:),TfitGrid(:)
     character(len=100) :: directory_of_cross_section_data(2)
     character(len=100) :: file_name
 
@@ -38,7 +42,7 @@ program bilder
     select case(typeWork)
         case(0)
             do i = 1,2
-        ! Выделяем место под массивы
+            ! Выделяем место под массивы
                 call get_mass(env%different_tipe_of_nuclear(i)%mass_of_nuclear * 1.660539e-27)
                 allocate(env%different_tipe_of_nuclear(i)%coordinate_distribution_grid(count_point))
                 allocate(env%different_tipe_of_nuclear(i)%coordinate_velocity_grid(count_point))
@@ -112,6 +116,20 @@ program bilder
                     write(i,*) " "
                 end do
             end do
+        case(2)
+            ! Делаем темпиратурыне сетки
+            call build_temerature_grid(conf%t_min,conf%t_max, conf%dt_union,Tgrid)
+            call build_temerature_grid(conf%t_min,conf%t_max, conf%dt_fit, TfitGrid)
+            ! Делаем уникальную сетку по энергиям
+            allocate(env%different_tipe_of_nuclear(1)%e_uniq_grid(env%different_tipe_of_nuclear(1)%count_point))
+            allocate(env%different_tipe_of_nuclear(2)%e_uniq_grid(env%different_tipe_of_nuclear(2)%count_point))
+            env%different_tipe_of_nuclear(1)%e_uniq_grid = env%different_tipe_of_nuclear(1)%energy_point_in_table
+            env%different_tipe_of_nuclear(2)%e_uniq_grid = env%different_tipe_of_nuclear(2)%energy_point_in_table
+            call build_union_grid(env%different_tipe_of_nuclear(1)%e_uniq_grid,Tgrid,3,conf%ft,env%different_tipe_of_nuclear(1)%energy_point_in_table,env,1,size(env%different_tipe_of_nuclear(1)%energy_point_in_table))
+            call build_union_grid(env%different_tipe_of_nuclear(2)%e_uniq_grid,Tgrid,3,conf%ft,env%different_tipe_of_nuclear(2)%energy_point_in_table,env,2,size(env%different_tipe_of_nuclear(2)%energy_point_in_table))
+            print*,  size(env%different_tipe_of_nuclear(1)%e_uniq_grid)," - " , size(env%different_tipe_of_nuclear(1)%energy_point_in_table)
+            print*,  size(env%different_tipe_of_nuclear(2)%e_uniq_grid)," - " , size(env%different_tipe_of_nuclear(2)%energy_point_in_table)
+
     end select
 
     contains

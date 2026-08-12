@@ -28,6 +28,7 @@ module data_type
         type(cross_section_data),allocatable:: cross_data(:)                ! Столбы различных сечений
         real, dimension(:), allocatable ::coordinate_distribution_grid      ! Сетка по плотности вероятности ядер
         real, dimension(:), allocatable ::coordinate_velocity_grid          ! Сетка по скоростям ядер
+        real, dimension(:), allocatable ::e_uniq_grid                       ! Сетка по уникальным энергиям (для OTF)
     end type nuclear_data
 
     !Таблица сечений для ядра 
