@@ -52,11 +52,13 @@ module scattering_process
         
     end function get_one_bump_netron_slow_down
 
-    function get_one_bump_netron_termalization(cur_netron_data, mass_enviroment, section_d,nuc) result(new_netron_data)
+    function get_one_bump_netron_termalization(cur_netron_data, mass_enviroment, section_d,nuc,tem,env) result(new_netron_data)
         type(netron_data), intent(in) :: cur_netron_data        !Нейтрон до взаимодействия                                              IN
         real, intent(in) :: mass_enviroment                     !Масса ядра, на котором происходит рассеивание                          IN
         real, intent(in) :: section_d                           !Сечение рассеивания, отвечающее данной энергии нейтрона и ядру         IN
         type(nuclear_data), intent(in) :: nuc
+        real, intent(in) :: tem
+        type(enviroment), intent(in) :: env
         type(netron_data) :: new_netron_data                    !Нейтрон после взаимодействия                                           OUT
 
         ! Начальные скорости нейтрона и ядра в лабораторной системе
@@ -69,7 +71,7 @@ module scattering_process
         real :: vn_star_new(3), vn_lab_new(3), abs_vn_lab_new
         new_netron_data = cur_netron_data
         rundom_probability_speed_of_nuclie = get_random_in_range(0.0,0.999)
-        random_velocity = found_number_with_table(rundom_probability_speed_of_nuclie,nuc%coordinate_distribution_grid,nuc%coordinate_velocity_grid,nuc%count_point_vel_distr)
+        random_velocity = found_number_with_table(rundom_probability_speed_of_nuclie,nuc%coordinate_distribution_grid,nuc%coordinate_velocity_grid,nuc%count_point_vel_distr, tem, env)
 
         vn0(1) = cur_netron_data%dir(1)*cur_netron_data%speed
         vn0(2) = cur_netron_data%dir(2)*cur_netron_data%speed

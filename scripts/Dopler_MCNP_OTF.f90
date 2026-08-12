@@ -26,8 +26,9 @@ module Dopler_MCNP_OTF
            t_grid(i+1) = t_min + i*delta
            
         end do
-     end subroutine
-     subroutine build_union_grid(Egrid,Tunion,nreac,ft,E_old,env,typeOfNuclear,n)
+   end subroutine
+
+   subroutine build_union_grid(Egrid,Tunion,nreac,ft,E_old,env,typeOfNuclear,n)
      
         integer, intent(in) :: n
         real, intent(in) :: E_old(n)
@@ -59,7 +60,7 @@ module Dopler_MCNP_OTF
            add_point = .false.
      
            ! Проверяем все реакции.
-           do r = 1,nreac
+           do r = 2,nreac
      
               ! Проверяем все температуры union temperature grid.
               do j = 1,size(Tunion)
@@ -75,8 +76,8 @@ module Dopler_MCNP_OTF
      
                  ! Fractional tolerance.
                  err = abs(sm-slin) / max(abs(sm),1.0e-12)
-     
-                 if (err > ft) then
+                 if (err -ft > 1.0e-12 .AND. E2-E1>0.00001) then
+                     print*, E1,E2
                     add_point = .true.
                     exit
                  end if
@@ -104,9 +105,9 @@ module Dopler_MCNP_OTF
      
         end do
      
-     end subroutine build_union_grid
+   end subroutine build_union_grid
      
-     subroutine build_coefficients(Egrid,Tfit,nreac,order,coeff,max_error,E,sigma)
+   subroutine build_coefficients(Egrid,Tfit,nreac,order,coeff,max_error,E,sigma)
         real, intent(in) :: Egrid(:),Tfit(:), E(:),sigma(:)
         integer, intent(in) :: nreac,order
         real, allocatable, intent(out) :: coeff(:,:,:),max_error(:,:)
@@ -133,9 +134,9 @@ module Dopler_MCNP_OTF
               coeff(:,r,g)=c
            end do
         end do
-     end subroutine build_coefficients
+   end subroutine build_coefficients
      
-     subroutine fit_one_energy(Tfit,sigma_T,order,coeff,max_error)
+   subroutine fit_one_energy(Tfit,sigma_T,order,coeff,max_error)
         real, intent(in) :: Tfit(:),sigma_T(:)
         integer, intent(in) :: order
         real, intent(out) :: coeff(2*order+1),max_error
@@ -160,9 +161,9 @@ module Dopler_MCNP_OTF
            fit_value=eval_expansion(Tfit(j),minval(Tfit),maxval(Tfit),order,coeff)
            max_error=max(max_error,abs(fit_value-sigma_T(j))/max(abs(sigma_T(j)),1.0e-12))
         end do
-     end subroutine fit_one_energy
+   end subroutine fit_one_energy
      
-     subroutine fill_matrix(Tfit,order,A)
+   subroutine fill_matrix(Tfit,order,A)
         real, intent(in) :: Tfit(:)
         integer, intent(in) :: order
         real, intent(out) :: A(:,:)
@@ -181,9 +182,9 @@ module Dopler_MCNP_OTF
               A(j,1+order+i)=q**(0.5*real(i))
            end do
         end do
-     end subroutine fill_matrix
+   end subroutine fill_matrix
      
-     subroutine least_squares_svd(Ain,bin,x,rank,info)
+   subroutine least_squares_svd(Ain,bin,x,rank,info)
         ! Self-contained least-squares solver.  No LAPACK is used.
         ! One-sided cyclic Jacobi SVD is applied to a column-scaled matrix.
         real, intent(in) :: Ain(:,:),bin(:)
@@ -304,9 +305,9 @@ module Dopler_MCNP_OTF
         do j=1,n
            x(j)=z(j)/scale(j)
         end do
-     end subroutine least_squares_svd
+   end subroutine least_squares_svd
      
-     function eval_expansion(T,Tmin,Tmax,order,coeff) result(sigma)
+   function eval_expansion(T,Tmin,Tmax,order,coeff) result(sigma)
         real, intent(in) :: T,Tmin,Tmax
         integer, intent(in) :: order
         real, intent(in) :: coeff(2*order+1)
@@ -319,17 +320,17 @@ module Dopler_MCNP_OTF
            sigma=sigma+coeff(1+i)*q**(-0.5*real(i)) &
                       +coeff(1+order+i)*q**(0.5*real(i))
         end do
-     end function eval_expansion
+   end function eval_expansion
      
-     function scaled_temperature(T,Tmin,Tmax) result(q)
+   function scaled_temperature(T,Tmin,Tmax) result(q)
         real, intent(in) :: T,Tmin,Tmax
         real :: q,Toff
         Toff=(Tmin-Tmax)/50.0
         q=(T-Tmin-Toff)/(Tmax-Tmin-Toff)
-     end function scaled_temperature
+   end function scaled_temperature
      
      
-     subroutine insert_point(x,pos,value)
+   subroutine insert_point(x,pos,value)
      
         real, allocatable, intent(inout) :: x(:)
      
@@ -357,8 +358,28 @@ module Dopler_MCNP_OTF
      
         call move_alloc(tmp,x)
      
-     end subroutine insert_point
+   end subroutine insert_point
      
+   function doplerBroadrOTF_MCNP(nuclied,tem,current_energy) result(sigmaDopler)
+      type(nuclear_data), intent(in) :: nuclied
+      real, intent(in) :: tem
+      real, intent(in) :: current_energy
+      real :: sigmaDopler
+      real :: i,energy_index
+      real :: q
+      q=scaled_temperature(tem,300.0,3200.0)
+      sigmaDopler=nuclied%K_OTF(1,i)
+      do i = 1,size(nuclied%e_uniq_grid)
+         if (nuclied%e_uniq_grid(i) > current_energy) then
+            energy_index = i
+            exit
+         end if
+      end do
+      do i = 1,8
+         sigmaDopler=sigmaDopler+nuclied%k_OTF(1+i,energy_index)*q**(-0.5*real(i)) +nuclied%k_OTF(1+8+i,energy_index)*q**(0.5*real(i))
+      end do
+   end function doplerBroadrOTF_MCNP
      
-     
+
+
 end module Dopler_MCNP_OTF

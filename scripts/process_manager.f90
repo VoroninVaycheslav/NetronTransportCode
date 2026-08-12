@@ -5,6 +5,8 @@ module process_manager
     use adsobtion_process
     use operation_with_data
     use math_operation
+    use DoplerTrearmentNJOY
+    use Dopler_MCNP_OTF
     implicit none
 
     contains
@@ -34,8 +36,7 @@ module process_manager
         do i = 1, env%count_nuclear
             
             !print*, cur_netron_data%energy
-            total_mac_current_cross_section_mas(i) = found_cross_section_from_energy(cur_netron_data%energy, &
-                env%different_tipe_of_nuclear(i),1)*env%different_tipe_of_nuclear(i)%nuclear_dencity
+            total_mac_current_cross_section_mas(i) = get_sigma(cur_netron_data%energy, env,i,1,0)*env%different_tipe_of_nuclear(i)%nuclear_dencity
         end do
         
         ! Выбор типа ядра
@@ -64,8 +65,7 @@ module process_manager
         ! Расчет микросечений для процессов (индексы: 2 - рассеяние, 3 - поглощение)
         total_micro_cross_section = 0.0
         do i = 2, env%different_tipe_of_nuclear(type_of_nuclie)%count_process
-            mic_current_cross_section_mas(i-1) = found_cross_section_from_energy(cur_netron_data%energy, &
-            env%different_tipe_of_nuclear(type_of_nuclie),i)
+            mic_current_cross_section_mas(i-1) = get_sigma(cur_netron_data%energy, env,type_of_nuclie,i,0)
         end do
         total_micro_cross_section = sum(mic_current_cross_section_mas)
         
@@ -81,10 +81,10 @@ module process_manager
         select case(type_of_process)
         case(1)
             ! Рассеяние с дыигвющимися ядрами
-            ! new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie))
+             new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie),env%tem,env)
             
             ! Рассеяние с покоящимися ядрами
-            new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
+            !new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
         case(2)
             ! Поглощение
             new_netron_data = get_absorption(cur_netron_data)
@@ -123,5 +123,33 @@ module process_manager
             new_netron_d(i)%is_died = .False.
         end do
     end function give_random_direction
+
+
+    function get_sigma(energy, env, type_of_nuclie, type_of_process, typeWorking) result(sigma)
+        real, intent(in) :: energy
+        type(enviroment), intent(in) :: env
+        real:: tem
+        integer, intent(in) :: type_of_nuclie
+        integer, intent(in) :: type_of_process
+        integer, intent(in) :: typeWorking
+        real :: sigma, alpha
+        tem = env%tem
+        select case(typeWorking)
+            case(0)
+                sigma = found_cross_section_from_energy(energy,tem,env, env%different_tipe_of_nuclear(type_of_nuclie),type_of_process)
+            case(1)
+                alpha = env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear / (k * tem)
+                sigma = doplerBroadr(energy, env%different_tipe_of_nuclear(type_of_nuclie)%energy_point_in_table,&
+                env%different_tipe_of_nuclear(type_of_nuclie)%cross_data(type_of_process)%cross_section_point_in_table, &
+                alpha, size(env%different_tipe_of_nuclear(type_of_nuclie)%energy_point_in_table))
+            case(2)
+                if(type_of_nuclie == 2)then
+                    sigma = doplerBroadrOTF_MCNP(env%different_tipe_of_nuclear(type_of_nuclie), tem, energy)
+                else
+                    sigma = found_cross_section_from_energy(energy,tem,env, env%different_tipe_of_nuclear(type_of_nuclie),type_of_process)
+                end if
+        end select
+    end function get_sigma
+
 
 end module process_manager

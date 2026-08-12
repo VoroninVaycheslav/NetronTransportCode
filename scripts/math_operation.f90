@@ -1,5 +1,5 @@
 module math_operation
-    
+    use data_type
     implicit none
 
     integer :: T = 300
@@ -42,6 +42,7 @@ module math_operation
 
         res = 2.0 * sqrt(E / (pi * T_M**3)) / exp(E / T_M)
     end function maxwell_distribution
+    
     function maxwell_speed_distribution(v) result(res)
 
         real, intent(in) :: v                           ! Скорсоть ядра
@@ -65,17 +66,27 @@ module math_operation
         m = mass_env
     end subroutine get_mass
 
+    subroutine get_temp(tem_env)
+        real, intent(in) :: tem_env
+        T = tem_env
+    end subroutine get_temp
 
 
-    function found_number_with_table(num, table_search, table_res, count_point) result(res)
+    function found_number_with_table(num, table_search, table_res, count_point,tem,env) result(res)
     real, intent(in) :: num
+    type(enviroment), intent(in) :: env
     integer, intent(in) :: count_point
-    real, dimension(count_point), intent(in) :: table_search
+    real, intent(in) :: tem
+    real, dimension(count_point,size(env%tem_grid)), intent(in) :: table_search
     real, dimension(count_point), intent(in) :: table_res
     real :: res
-
+ 
     real :: l_lim_v, r_lim_v, l_lim_d, r_lim_d
-    integer :: left, right, mid
+    integer :: left, right, mid,tem_index
+
+    do tem_index = 1, size(env%tem_grid)
+            if (tem == env%tem_grid(tem_index)) exit
+    end do
 
     ! === ЗАЩИТА ОТ ПУСТЫХ ТАБЛИЦ ===
     if (count_point < 2) then
@@ -89,12 +100,12 @@ module math_operation
     end if
 
     ! === ЗАЩИТА ОТ ВЫХОДА ЗА ГРАНИЦЫ ===
-    if (num <= table_search(1)) then
+    if (num <= table_search(1,tem_index)) then
         res = table_res(1)
         return
     end if
 
-    if (num >= table_search(count_point)) then
+    if (num >= table_search(count_point,tem_index)) then
         res = table_res(count_point)
         return
     end if
@@ -105,7 +116,7 @@ module math_operation
 
     do while (right - left > 1)
         mid = (left + right) / 2
-        if (num <= table_search(mid)) then
+        if (num <= table_search(mid,tem_index)) then
             right = mid
         else
             left = mid
@@ -115,8 +126,8 @@ module math_operation
     ! === ИНТЕРПОЛЯЦИЯ ===
     l_lim_v = table_res(left)
     r_lim_v = table_res(right)
-    l_lim_d = table_search(left)
-    r_lim_d = table_search(right)
+    l_lim_d = table_search(left,tem_index)
+    r_lim_d = table_search(right,tem_index)
 
     if (abs(r_lim_d - l_lim_d) < 1.0e-30) then
         res = (l_lim_v + r_lim_v) / 2.0
