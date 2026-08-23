@@ -9,7 +9,7 @@ program bilder
 
     implicit none
 
-    integer :: N = 1000000
+    integer :: N = 10000
     integer i,r,j
     integer :: tem = 3200
     real integ,alpha
@@ -161,7 +161,7 @@ program bilder
                 env%different_tipe_of_nuclear(i)%count_point_vel_distr=count_point
                 do j = 1,8
                     call get_temp(env%tem_grid(j))
-                    do r = 0, count_point
+                    do r = 1, count_point
                         integ = integrate_function(maxwell_speed_distribution,0.0,real(r),10000)
                         env%different_tipe_of_nuclear(i)%coordinate_distribution_grid(r,j) = integ
                         env%different_tipe_of_nuclear(i)%coordinate_velocity_grid(r) = r
