@@ -1,13 +1,29 @@
+!==============================================================================
+! Module: serpent_dopler
+!
+! Purpose:
+!   Implements the existing target-motion majorant, target-energy sampling, and
+!   auxiliary Gaussian/uniform random sampling used by the TMS branch.
+!
+!==============================================================================
 module serpent_dopler
     
     use data_type
     use operation_with_data
     implicit none
     
-    real, parameter :: KB_EV = 8.617333262e-5
-    real, parameter :: PI_R  = 3.14159265358979323846
+    real, parameter :: KB_EV = 8.617333262e-5                   ! Boltzmann constant [eV/K].
+    real, parameter :: PI_R  = 3.14159265358979323846           ! Pi.
 
 contains
+    !==============================================================================
+    ! function: tms_g
+    !
+    ! Purpose:
+    !   Evaluate the TMS relative-speed correction factor g(E,dT,A).
+    !
+    !==============================================================================
+
     real function tms_g(E, dT, A) result(g)
         real, intent(in) :: E, dT, A
         real :: kappa, x, x2
@@ -27,6 +43,14 @@ contains
         end if
     end function tms_g
 
+    !==============================================================================
+    ! function: tms_energy_bounds
+    !
+    ! Purpose:
+    !   Compute the target-motion energy search interval [Emin,Emax].
+    !
+    !==============================================================================
+
     subroutine tms_energy_bounds(E, dT, A, Emin, Emax)
         real, intent(in)  :: E, dT, A
         real, intent(out) :: Emin, Emax
@@ -39,7 +63,14 @@ contains
         Emin = max(0.0, rootE - droot)**2
         Emax = (rootE + droot)**2
     end subroutine tms_energy_bounds
-    
+    !==============================================================================
+    ! function: max_total_micro_xs
+    !
+    ! Purpose:
+    !   Find the maximum tabulated microscopic cross section over an energy interval.
+    !
+    !==============================================================================
+
     real function max_total_micro_xs(nuclide, Emin, Emax,tem,env,index) result(sigmax)
         type(enviroment), intent(in) :: env
         real, intent(in) ::tem
@@ -63,6 +94,13 @@ contains
         end do
     end function max_total_micro_xs
 
+    !==============================================================================
+    ! function: tms_nuclide_majorant
+    !
+    ! Purpose:
+    !   Construct the nuclide TMS majorant used for rejection sampling.
+    !
+    !==============================================================================
 
     real function tms_nuclide_majorant(nuclide, E, Tbase, Tmax,env,index) result(Smaj)
         type(nuclear_data), intent(in) :: nuclide
@@ -80,6 +118,14 @@ contains
 
         Smaj = g * sigmax
     end function tms_nuclide_majorant
+
+    !==============================================================================
+    ! function: tms_sample_target_energy
+    !
+    ! Purpose:
+    !   Sample target motion and the corresponding relative neutron energy.
+    !
+    !==============================================================================
 
     subroutine tms_sample_target_energy(E, dT, A, Eprime,target_velocity)
         real, intent(in)  :: E, dT, A
@@ -144,12 +190,28 @@ contains
         Eprime = vrel*vrel
     end subroutine tms_sample_target_energy
     
+    !==============================================================================
+    ! function: gaussian01
+    !
+    ! Purpose:
+    !   Draw one standard normal deviate using the Box-Muller transform.
+    !
+    !==============================================================================
+
     real function gaussian01() result(z)
         real :: u1, u2
         call positive_uniform(u1)
         call random_number(u2)
         z = sqrt(-2.0*log(u1))*cos(2.0*PI_R*u2)
     end function gaussian01
+
+    !==============================================================================
+    ! function: positive_uniform
+    !
+    ! Purpose:
+    !   Draw a strictly positive uniform deviate suitable for logarithms.
+    !
+    !==============================================================================
 
     subroutine positive_uniform(u)
         real, intent(out) :: u

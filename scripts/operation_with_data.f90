@@ -1,3 +1,12 @@
+!==============================================================================
+! Module: operation_with_data
+!
+! Purpose:
+!   Loads tabulated cross sections and OTF coefficient data, stores them in the
+!   shared nuclear-data structures, and evaluates tabulated cross sections at a
+!   requested neutron energy and temperature-grid index.
+!
+!==============================================================================
 module operation_with_data
 
     use data_type
@@ -5,7 +14,25 @@ module operation_with_data
 
     
     contains
-    !Поиск сечения по заданной энергии
+
+    !==============================================================================
+    ! function: found_cross_section_from_energy
+    !
+    ! Purpose:
+    !   Interpolate a microscopic cross section at a requested energy.
+    !
+    ! Parametr IN:
+    !   current_energy            -   Neutron energy [eV].
+    !   tem                       -   Requested material temperature [K].
+    !   env                       -   Environment containing the discrete temperat
+    !   nuclear_d                 -   Nuclide data and cross-section tables.
+    !   index_process             -   Internal reaction-column index.
+    !
+    ! Parametr OUT:  
+    !   current_section         -   Linearly interpolated microscopic cross section.
+    !
+    !==============================================================================
+
     function found_cross_section_from_energy(current_energy, tem, env, nuclear_d, index_process) result(current_section)
         type(nuclear_data), intent(in) :: nuclear_d         !Информация о текущем ядре (его сечения)        IN
         real, intent(in) :: current_energy                  !Текущая энергия                                IN
@@ -42,7 +69,22 @@ module operation_with_data
 
     end function found_cross_section_from_energy
 
-    !Загружаем все данные о ядрах для серды из файлов
+    !==============================================================================
+    ! subroutine: load_cross_section_fron_file
+    !
+    ! Purpose:
+    !   Load multi-temperature nuclide cross-section tables from text files.
+    !
+    ! Parametr IN:
+    !   size_data_list                          -   Number of nuclides/files in the first array dimension.
+    !   count_tem                               -   Number of temperatures supplied for each nuclide.
+    !   directory_of_cross_section_data         -   Matrix of input file paths.
+    !
+    ! Parametr IN/OUT:  
+    !   env                                     -   Environment populated with nuclide metadata and cross sections.
+    !
+    !==============================================================================
+
     subroutine load_cross_section_fron_file(size_data_list,count_tem,directory_of_cross_section_data, env)
         integer, intent(in)::size_data_list                                                     !Количество считываемых файлов      IN
         integer, intent(in) :: count_tem                                                        !Количество температур              IN
@@ -134,6 +176,20 @@ module operation_with_data
         end do
 
     end subroutine load_cross_section_fron_file
+
+    !==============================================================================
+    ! subroutine: load_OTF_coefficients
+    !
+    ! Purpose:
+    !   Load precomputed OTF expansion coefficients for one nuclide.
+    !
+    ! Parametr IN:
+    !   filenames    -   One coefficient file per reaction.
+    !
+    ! Parametr IN/OUT:  
+    !   nuclear_d    -   Nuclide object receiving K_OTF
+    !
+    !==============================================================================
 
     subroutine load_OTF_coefficients(filenames, nuclear_d)
 
@@ -328,6 +384,20 @@ module operation_with_data
 
 
     end subroutine load_OTF_coefficients
+
+    !==============================================================================
+    ! subroutine: load_unique_energy_grid
+    !
+    ! Purpose:
+    !   Load the unique energy grid associated with OTF coefficients.
+    !
+    ! Parametr IN:
+    !   filename      -   Text file containing one energy value per row.
+    !
+    ! Parametr IN/OUT:  
+    !   nuclear_d     -   Nuclide object receiving K_OTF
+    !
+    !==============================================================================
 
     subroutine load_unique_energy_grid(filename, nuclear_d)
 

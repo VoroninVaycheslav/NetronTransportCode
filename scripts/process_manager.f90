@@ -1,3 +1,12 @@
+!==============================================================================
+! module: process_manager
+!
+! Purpose:
+!   Selects the collision nuclide and reaction from macroscopic/microscopic
+!   cross sections, dispatches scattering or absorption physics, and provides
+!   the cross-section treatment selector used by the collision kernel.
+!
+!==============================================================================
 module process_manager
 
     use data_type
@@ -11,46 +20,71 @@ module process_manager
     implicit none
 
     contains
-    ! Моделирование процесса взимодействия нейтрона с ядром
+    !==============================================================================
+    ! function: collision_controller
+    !
+    ! Purpose:
+    !   Execute one collision-selection and reaction-dispatch step.
+    !
+    ! Selection sequence:
+    !   1. Build per-nuclide macroscopic total cross sections.
+    !   2. Sample the interacting nuclide by cumulative probability.
+    !   3. Optionally perform the TMS acceptance/rejection branch.
+    !   4. Build reaction microscopic cross sections for the selected nuclide.
+    !   5. Sample and dispatch scattering or absorption.
+    !
+    ! Parametr IN:
+    !   cur_netron_data     -   Neutron state at entry t
+    !   env                 -   Material/nuclear-data environment.
+    !
+    ! Parametr OUT:  
+    !   new_netron_d        -   Updated neutron state after scattering, absorption, or a TMS rejection cycle.
+    !
+    !==============================================================================
+
     function collision_controller(cur_netron_data, env) result(new_netron_data)
         
-        type(netron_data), intent(in) :: cur_netron_data                        !Нейтрон до взаимодействия                  IN
-        type(enviroment), intent(in) :: env                                     !Среда, в которой находится нейтрон         IN
-        type(netron_data) :: new_netron_data                                    !Нейтрон после взаимодействия               OUT
+        type(netron_data), intent(in) :: cur_netron_data                        
+        type(enviroment), intent(in) :: env                                     
+        type(netron_data) :: new_netron_data                                    
         
-        real, allocatable :: mic_current_cross_section_mas(:)                   !Микроскопические сечения, возможные при данной энергии и при данном ядре
-        real, allocatable :: total_mac_current_cross_section_mas(:)             !Макроскопические сечения для всех ядер
-        real :: total_mac_cross_section                                         !Полноне Макроскопические сечение среды 
-        real :: total_micro_cross_section                                       !Полное микроскопическое сечение выбранного ядра
-        integer :: type_of_nuclie                                               !Тип выбранного ядра
-        integer :: type_of_process                                              !Тип выбранного процесса
-        real :: sum_val,pacc,dTlocal,Eprime,Stot_prime,g_local
-        real :: p1, p2,u, path
-        integer :: i
+        real, allocatable :: mic_current_cross_section_mas(:)                   ! Reaction microscopic cross sections for the selected nuclide.
+        real, allocatable :: total_mac_current_cross_section_mas(:)             ! Per-nuclide macroscopic total cross sections.
+        real :: total_mac_cross_section                                         ! Total macroscopic cross section of the material.
+        real :: total_micro_cross_section                                       ! Sum of sampled reaction microscopic cross sections.
+        integer :: type_of_nuclie                                               ! Index of the sampled interacting nuclide.
+        integer :: type_of_process                                              ! Index of the sampled reaction within the local reaction array.
+        real :: sum_val,pacc,dTlocal,Eprime,Stot_prime,g_local                  ! Cumulative XS, TMS acceptance, dT, relative energy, XS, and g factor.
+        real :: p1, p2,u, path                                                  ! Sampling coordinates, uniform deviate, and traveled path length.
+        integer :: i                                                            ! Nuclide/reaction loop index.
+        ! Cross-section treatment used internally by collision_controller.
+        ! 0 = direct tabulated interpolation
+        ! 1 = NJOY-style analytical broadening
+        ! 2 = OTF fitted expansion  [current preserved default]
+        ! 3 = TMS majorant / rejection branch
+        ! NOTE: this remains local and hard-coded to preserve validated behavior.
         integer :: typeW = 2
         real target_vel(3)
         new_netron_data = cur_netron_data
         do
             total_mac_cross_section = 0
             
-            ! Выделяем память для массива макроскопического сечения
             allocate(total_mac_current_cross_section_mas(env%count_nuclear))
             
-            ! Расчет макросечений для каждого типа ядра
+            ! Build macroscopic total cross sections for all nuclides.
             do i = 1, env%count_nuclear
                 
-                !print*, cur_netron_data%energy
                 total_mac_current_cross_section_mas(i) = get_sigma(new_netron_data%energy, env,i,1,0)*env%different_tipe_of_nuclear(i)%nuclear_dencity
             end do
             
-            ! Выбор типа ядра
+            ! Sum macroscopic cross sections before probabilistic nuclide selection.
             total_mac_cross_section = sum(total_mac_current_cross_section_mas)
             
-        ! Генириуем случайное число для выбора ядра 
+            ! Draw a random coordinate on the total macroscopic-cross-section interval.
             p1 = get_random_in_range(0.0000000000001, total_mac_cross_section)
             type_of_nuclie = 0
             sum_val = 0.0
-            ! Выбираем ядро с помощью координаты на отрезке
+            ! Select the nuclide by cumulative cross-section weight.
             do while (sum_val < p1 .and. type_of_nuclie < env%count_nuclear)
                 type_of_nuclie = type_of_nuclie + 1
                 sum_val = sum_val + total_mac_current_cross_section_mas(type_of_nuclie)
@@ -65,6 +99,7 @@ module process_manager
 
 
 
+            ! TMS-only candidate-collision acceptance/rejection branch.
             if(typeW == 3)then
                 dTlocal = env%tem-294
                 if (dTlocal > 0.0) then
@@ -98,10 +133,9 @@ module process_manager
             end if
 
 
-            ! Выделяем память для массива микроскопического сечения
+            ! Evaluate reaction cross sections (table columns 2..count_process).
             allocate(mic_current_cross_section_mas(env%different_tipe_of_nuclear(type_of_nuclie)%count_process-1))
             
-            ! Расчет микросечений для процессов (индексы: 2 - рассеяние, 3 - поглощение)
             total_micro_cross_section = 0.0
             do i = 2, env%different_tipe_of_nuclear(type_of_nuclie)%count_process
                 if(typeW == 3)then
@@ -144,28 +178,39 @@ module process_manager
                     new_netron_data%speed_estimator = path * mic_current_cross_section_mas(2)
                 end if
                 case(2)
-                ! Поглощение
-                new_netron_data = get_absorption(new_netron_data)
+                    new_netron_data = get_absorption(new_netron_data)
             case default
                 print *, "ВНИМАНИЕ: Неизвестный тип процесса: ", type_of_process, p2, cur_netron_data%energy
             end select
             
-            ! Освобождаем память
             deallocate(mic_current_cross_section_mas, total_mac_current_cross_section_mas)
             exit
         end do
     end function collision_controller
-    ! Создаем нейтроны со случайными направлениями движения и одинаковой энергией
+    
+    !==============================================================================
+    ! function: give_random_direction
+    !
+    ! Purpose:
+    !   Initialize N neutron histories with random directions and common energy E.
+    !
+    ! Parametr IN:
+    !   N            -   Number of neutron histories.
+    !   E            -   Initial neutron energy [eV].
+    !
+    ! Parametr OUT:  
+    !   new_netron_d -   Array of initialized neutron states at the origin.
+    !
+    !==============================================================================
 
     function give_random_direction(N, E) result(new_netron_d)
-        integer, intent(in) :: N                        !Количество нейтронов       IN
+        integer, intent(in) :: N                        
         real, intent(in):: E
-        type(netron_data) :: new_netron_d(N)            !Созданный нейтрон          OUT
+        type(netron_data) :: new_netron_d(N)            
         real :: T, Fi
         integer :: i
 
         do i = 1, N
-            !Задаем случайное напрваление движения
             T = get_random_in_range(0.0, 3.14159)
             Fi = get_random_in_range(0.0, 6.28318)
             new_netron_d(i)%dir(1) = sin(T) * cos(Fi)
@@ -173,7 +218,6 @@ module process_manager
             new_netron_d(i)%dir(3) = cos(T)
             new_netron_d(i)%energy = E
   
-            !Обнуляем остальные характеристики нейтрона
             new_netron_d(i)%speed = 1.38e4 * sqrt(new_netron_d(i)%energy)
             new_netron_d(i)%pos = [0.0, 0.0, 0.0]
             new_netron_d(i)%life_time = 0.0
@@ -182,6 +226,24 @@ module process_manager
         end do
     end function give_random_direction
 
+    !==============================================================================
+    ! function: get_sigma
+    !
+    ! Purpose:
+    !   Collision-selection and reaction-dispatch logic.
+    !
+    !
+    ! Parametr IN:
+    !   energy          -   Neutron energy [eV].
+    !   env             -   Material/nuclear-data environment.
+    !   type_of_nuclie  -   Nuclide index.
+    !   type_of_process -   Internal reaction-column index
+    !   typeWorking     -   Cross-section treatment selector.
+    !
+    ! Parametr OUT:  
+    !   sigma           -   Microscopic cross section.
+    !
+    !==============================================================================
 
     function get_sigma(energy, env, type_of_nuclie, type_of_process, typeWorking) result(sigma)
         real, intent(in) :: energy

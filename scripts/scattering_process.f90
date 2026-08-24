@@ -1,3 +1,15 @@
+!==============================================================================
+! Module: scattering_process
+!
+! Purpose:
+!   Implements elastic slowing-down scattering, thermal target-motion
+!   scattering, TMS candidate flight, and post-collision direction/energy
+!   updates.
+!
+! Coordinate convention:
+!   dir(1:3) is the neutron direction cosine vector; pos(1:3) is the particle
+!   position in the transport coordinate system.
+!==============================================================================
 module scattering_process
 
     use data_type
@@ -5,12 +17,27 @@ module scattering_process
     implicit none
  
     contains
-    !Моделирование рассеяния частиц
+    !==============================================================================
+    ! function: get_one_bump_netron_slow_down
+    !
+    ! Purpose:
+    !   Model one elastic slowing-down collision with a stationary target nucleus.
+    !
+    ! Parametr IN:
+    !  cur_netron_data       -   Neutron state before the collision.
+    !  mass_enviroment       -   Target mass parameter used by the legacy kinematics.
+    !  section_d             -   Macroscopic interaction cross section used to sample flight distance.
+    !
+    ! Parametr OUT:  
+    !   new_netron_d        - Neutron state after slow down.
+    !
+    !==============================================================================
+
     function get_one_bump_netron_slow_down(cur_netron_data, mass_enviroment, section_d) result(new_netron_data)
-        type(netron_data), intent(in) :: cur_netron_data        !Нейтрон до взаимодействия                                              IN
-        real, intent(in) :: mass_enviroment                     !Масса ядра, на котором происходит рассеивание                          IN
-        real, intent(in) :: section_d                           !Сечение рассеивания, отвечающее данной энергии нейтрона и ядру         IN
-        type(netron_data) :: new_netron_data                    !Нейтрон после взаимодействия                                           OUT
+        type(netron_data), intent(in) :: cur_netron_data       
+        real, intent(in) :: mass_enviroment                    
+        real, intent(in) :: section_d                          
+        type(netron_data) :: new_netron_data                   
        
         real :: T, newT, fi, P
         real :: norm_factor, eps
@@ -19,11 +46,9 @@ module scattering_process
         T = get_random_in_range(-1.0, 1.0)
         newT = (1.0 + mass_enviroment * T) / sqrt(1.0 + mass_enviroment**2 + 2.0 * mass_enviroment * T)
 
-        !Задаем случайные числа для рассивания (два угла рассеяния)
         fi = get_random_in_range(0.0, 6.283185)
         P = get_random_in_range(0.001, 1.0)
         
-        ! Расчет нового направления
         if (abs(1.0 - cur_netron_data%dir(3)**2) > eps) then
             norm_factor = sqrt(1.0 - newT**2) / sqrt(1.0 - cur_netron_data%dir(3)**2)
             
@@ -35,15 +60,12 @@ module scattering_process
             new_netron_data%dir(2) = sqrt(1.0 - newT**2) * sin(fi)
             new_netron_data%dir(3) = newT * sign(1.0, cur_netron_data%dir(3))
         end if
-        ! Расчет новой энергии
         new_netron_data%energy = cur_netron_data%energy * (mass_enviroment**2 + 1.0 + 2.0 * mass_enviroment * T) / ((mass_enviroment + 1.0)**2)
         
-        ! Расчет нового положения
         new_netron_data%pos(1) = cur_netron_data%pos(1) + new_netron_data%dir(1) * (-log(P)) / section_d
         new_netron_data%pos(2) = cur_netron_data%pos(2) + new_netron_data%dir(2) * (-log(P)) / section_d
         new_netron_data%pos(3) = cur_netron_data%pos(3) + new_netron_data%dir(3) * (-log(P)) / section_d
         
-        ! Расчет скорости и времени жизни
         new_netron_data%speed = 1.38e4 * sqrt(new_netron_data%energy)
         new_netron_data%life_time = cur_netron_data%life_time + (-log(P)) / (section_d * new_netron_data%speed) * 0.01
         new_netron_data%count_collision = cur_netron_data%count_collision + 1
@@ -52,16 +74,24 @@ module scattering_process
         
     end function get_one_bump_netron_slow_down
 
+    !==============================================================================
+    ! function: get_one_bump_netron_termalization
+    !
+    ! Purpose:
+    !   Model one collision with a thermally moving target nucleus.
+    !
+    !
+    !==============================================================================
+
     function get_one_bump_netron_termalization(cur_netron_data, mass_enviroment, section_d,nuc,tem,env) result(new_netron_data)
-        type(netron_data), intent(in) :: cur_netron_data        !Нейтрон до взаимодействия                                              IN
-        real, intent(in) :: mass_enviroment                     !Масса ядра, на котором происходит рассеивание                          IN
-        real, intent(in) :: section_d                           !Сечение рассеивания, отвечающее данной энергии нейтрона и ядру         IN
+        type(netron_data), intent(in) :: cur_netron_data       
+        real, intent(in) :: mass_enviroment                    
+        real, intent(in) :: section_d                          
         type(nuclear_data), intent(in) :: nuc
         real, intent(in) :: tem
         type(enviroment), intent(in) :: env
-        type(netron_data) :: new_netron_data                    !Нейтрон после взаимодействия                                           OUT
+        type(netron_data) :: new_netron_data                   
 
-        ! Начальные скорости нейтрона и ядра в лабораторной системе
         real :: vn0(3), va0(3)
         real :: rel_dir(3), v_rel(3), u_n(3)
         real :: abs_v_rel, abs_va
@@ -117,6 +147,14 @@ module scattering_process
 
     end function get_one_bump_netron_termalization
 
+    !==============================================================================
+    ! function: move_neutron_TMS_candidate
+    !
+    ! Purpose:
+    !   Transport a neutron to a candidate TMS collision site using Sigma_maj.
+    !
+    !==============================================================================
+
     function move_neutron_TMS_candidate(neutron, env, Tbase, Tmax,Sigma_maj) result(new_netron_d)
         
         type(netron_data), intent(in) :: neutron
@@ -158,6 +196,14 @@ module scattering_process
 
     end function move_neutron_TMS_candidate
  
+    !==============================================================================
+    ! function: change_dir_TMS
+    !
+    ! Purpose:
+    !   Update neutron direction and energy after an accepted TMS collision.
+    !
+    !==============================================================================
+
     function change_dir_TMS(cur_netron_data, mass_enviroment, target_velocity) result(new_netron_d)
         implicit none
 
