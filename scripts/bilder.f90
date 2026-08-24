@@ -9,7 +9,7 @@ program bilder
 
     implicit none
 
-    integer :: N = 10000
+    integer :: N = 100000
     integer i,r,j
     integer :: tem = 3200
     real integ,alpha
@@ -28,37 +28,50 @@ program bilder
 
     real, allocatable :: e_uniq_grid(:,:),Tgrid(:),TfitGrid(:)
     character(len=100) :: directory_of_cross_section_data(2,8)
+    character(len=100) :: directory_of_coeff_data_Carbon(3)
+    character(len=100) :: directory_of_coeff_data_Uranium(3)
     character(len=100) :: file_name
+    real::  local_speed_estimator(8) = 0
+    real:: local_count_lived(8) = 0
     real :: localPos = 0.0
 
     allocate(netrons(N))
+    !Reader
+        directory_of_cross_section_data(1,1) = "dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt"
+        directory_of_cross_section_data(1,2) = "dataBaseOfCrossSection/Cross-section-data-Carbon-400.txt"
+        directory_of_cross_section_data(1,3) = "dataBaseOfCrossSection/Cross-section-data-Carbon-800.txt"
+        directory_of_cross_section_data(1,4) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1200.txt"
+        directory_of_cross_section_data(1,5) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1800.txt"
+        directory_of_cross_section_data(1,6) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2200.txt"
+        directory_of_cross_section_data(1,7) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2800.txt"
+        directory_of_cross_section_data(1,8) = "dataBaseOfCrossSection/Cross-section-data-Carbon-3200.txt"
 
-    directory_of_cross_section_data(1,1) = "dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt"
-    directory_of_cross_section_data(1,2) = "dataBaseOfCrossSection/Cross-section-data-Carbon-400.txt"
-    directory_of_cross_section_data(1,3) = "dataBaseOfCrossSection/Cross-section-data-Carbon-800.txt"
-    directory_of_cross_section_data(1,4) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1200.txt"
-    directory_of_cross_section_data(1,5) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1800.txt"
-    directory_of_cross_section_data(1,6) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2200.txt"
-    directory_of_cross_section_data(1,7) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2800.txt"
-    directory_of_cross_section_data(1,8) = "dataBaseOfCrossSection/Cross-section-data-Carbon-3200.txt"
+        directory_of_cross_section_data(2,1) = "dataBaseOfCrossSection/Cross-section-data-Uranium-294.txt"
+        directory_of_cross_section_data(2,2) = "dataBaseOfCrossSection/Cross-section-data-Uranium-400.txt"
+        directory_of_cross_section_data(2,3) = "dataBaseOfCrossSection/Cross-section-data-Uranium-800.txt"
+        directory_of_cross_section_data(2,4) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1200.txt"
+        directory_of_cross_section_data(2,5) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1800.txt"
+        directory_of_cross_section_data(2,6) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2200.txt"
+        directory_of_cross_section_data(2,7) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2800.txt"
+        directory_of_cross_section_data(2,8) = "dataBaseOfCrossSection/Cross-section-data-Uranium-3200.txt"
 
-    directory_of_cross_section_data(2,1) = "dataBaseOfCrossSection/Cross-section-data-Uranium-294.txt"
-    directory_of_cross_section_data(2,2) = "dataBaseOfCrossSection/Cross-section-data-Uranium-400.txt"
-    directory_of_cross_section_data(2,3) = "dataBaseOfCrossSection/Cross-section-data-Uranium-800.txt"
-    directory_of_cross_section_data(2,4) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1200.txt"
-    directory_of_cross_section_data(2,5) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1800.txt"
-    directory_of_cross_section_data(2,6) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2200.txt"
-    directory_of_cross_section_data(2,7) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2800.txt"
-    directory_of_cross_section_data(2,8) = "dataBaseOfCrossSection/Cross-section-data-Uranium-3200.txt"
-
+        directory_of_coeff_data_Carbon(1) = "CoefData/coefficients-MT-1-Carbon.txt"
+        directory_of_coeff_data_Carbon(2) = "CoefData/coefficients-MT-2-Carbon.txt"
+        directory_of_coeff_data_Carbon(3) = "CoefData/coefficients-MT-102-Carbon.txt"
+        
+        directory_of_coeff_data_Uranium(1) = "CoefData/coefficients-MT-1-Uranium.txt"
+        directory_of_coeff_data_Uranium(2) = "CoefData/coefficients-MT-2-Uranium.txt"
+        directory_of_coeff_data_Uranium(3) = "CoefData/coefficients-MT-102-Uranium.txt"
+    !
     call load_cross_section_fron_file(2,8,directory_of_cross_section_data,env)
+    
+    call load_OTF_coefficients(directory_of_coeff_data_Carbon,env%different_tipe_of_nuclear(1))
+    call load_OTF_coefficients(directory_of_coeff_data_Uranium,env%different_tipe_of_nuclear(2))
+
+    call load_unique_energy_grid("CoefData/unique-energy-grid-Carbon.txt",env%different_tipe_of_nuclear(1))
+    call load_unique_energy_grid("CoefData/unique-energy-grid-Uranium.txt",env%different_tipe_of_nuclear(2))
     env%tem_grid = [294.0,400.0,800.0,1200.0,1800.0,2200.0,2800.0, 3200.0]
-    !do i = 1,size(env%different_tipe_of_nuclear(1)%energy_point_in_table)
-    !    print*,env%different_tipe_of_nuclear(1)%energy_point_in_table(i),found_cross_section_from_energy(env%different_tipe_of_nuclear(1)%energy_point_in_table(i),env%different_tipe_of_nuclear(1),1)
-    !end do
-    !do i = 1,size(env%different_tipe_of_nuclear(1)%energy_point_in_table)
-    !    print*, env%different_tipe_of_nuclear(1)%cross_data(1)%cross_section_point_in_table(i,3)
-    !end do
+    
     select case(typeWork)
         case(0)
             do i = 1,2
@@ -176,21 +189,32 @@ program bilder
                 env%tem = 3200.0
                 do while (.not. netrons(i)%is_died .and. netrons(i)%energy > 1)
                     netrons(i) = collision_controller(netrons(i), env)
+
                     localPos = sqrt(netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2)
                     if(localPos > 2.0 .and. localPos < 4.0)then
                         env%tem = 2800.0
+                        local_speed_estimator(2) = local_speed_estimator(2)+netrons(i)%speed_estimator
                     else if(localPos > 4.0 .and. localPos < 6.0)then
                         env%tem = 2200.0
+                        local_speed_estimator(3) = local_speed_estimator(3)+netrons(i)%speed_estimator
                     else if(localPos > 6.0 .and. localPos < 8.0)then
                         env%tem = 1800.0
+                        local_speed_estimator(4) = local_speed_estimator(4)+netrons(i)%speed_estimator
                     else if(localPos > 8.0 .and. localPos < 10.0)then
                         env%tem = 1200.0
+                        local_speed_estimator(5) = local_speed_estimator(5)+netrons(i)%speed_estimator
                     else if(localPos > 10.0 .and. localPos < 12.0)then
                         env%tem = 800.0
+                        local_speed_estimator(6) = local_speed_estimator(6)+netrons(i)%speed_estimator
                     else if(localPos > 12.0 .and. localPos < 15.0)then
                         env%tem = 400.0
+                        local_speed_estimator(7) = local_speed_estimator(7)+netrons(i)%speed_estimator
                     else if(localPos > 15.0)then
                         env%tem = 294.0
+                        local_speed_estimator(8) = local_speed_estimator(8)+netrons(i)%speed_estimator
+                    else
+                        env%tem = 3200.0
+                        local_speed_estimator(1) = local_speed_estimator(1)+netrons(i)%speed_estimator
                     end if
                 end do 
                 age_of_netron = netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2 + age_of_netron
@@ -214,10 +238,49 @@ program bilder
             end do 
             dispersion = dispersion/countLivedNetron
             elapsed_time = end_time - start_time
+            do i = 1, N
+                
+                localPos = sqrt(netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2)
+                if(localPos < 2.0)then
+                    local_count_lived(1) = local_count_lived(1) + 1
+                end if
+                if(localPos < 4.0)then
+                    local_count_lived(2) = local_count_lived(2) + 1
+                end if
+                if(localPos < 6.0)then
+                    local_count_lived(3) = local_count_lived(3) + 1
+                end if
+                if(localPos < 8.0)then
+                    local_count_lived(4) = local_count_lived(4) + 1
+                end if
+                if(localPos < 10.0)then
+                    local_count_lived(5) = local_count_lived(5) + 1
+                end if
+                if(localPos < 12.0)then
+                    local_count_lived(6) = local_count_lived(6) + 1
+                end if
+                if(localPos < 15.0)then
+                    local_count_lived(7) = local_count_lived(7) + 1
+                end if
+                if(localPos < 100.0)then
+                    local_count_lived(8) = local_count_lived(8) + 1
+                end if
+
+            end do
 
             print *, "Растояние пройденное без поглащения: ", livedDistance
             print *, "Время работы программы: ", elapsed_time
             print *, "FOM: ", 1/(elapsed_time*dispersion)
+            print*, countLivedNetron
+            
+            print*, "Speen of adsorption on the distans = 2 cm: ", local_speed_estimator(1)/local_count_lived(1)
+            print*, "Speen of adsorption on the distans = 4 cm: ", local_speed_estimator(2)/local_count_lived(2)
+            print*, "Speen of adsorption on the distans = 6 cm: ", local_speed_estimator(3)/local_count_lived(3)
+            print*, "Speen of adsorption on the distans = 8 cm: ", local_speed_estimator(4)/local_count_lived(4)
+            print*, "Speen of adsorption on the distans = 10 cm: ", local_speed_estimator(5)/local_count_lived(5)
+            print*, "Speen of adsorption on the distans = 12 cm: ", local_speed_estimator(6)/local_count_lived(6)
+            print*, "Speen of adsorption on the distans = 15 cm: ", local_speed_estimator(7)/local_count_lived(7)
+            print*, "Speen of adsorption on the distans > 15 cm: ", local_speed_estimator(8)/local_count_lived(8)
     
     end select
 

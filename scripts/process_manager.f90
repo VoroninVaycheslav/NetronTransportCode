@@ -25,9 +25,11 @@ module process_manager
         integer :: type_of_nuclie                                               !Тип выбранного ядра
         integer :: type_of_process                                              !Тип выбранного процесса
         real :: sum_val,pacc,dTlocal,Eprime,Stot_prime,g_local
-        real :: p1, p2,u
+        real :: p1, p2,u, path
         integer :: i
-        integer :: typeW = 3
+        integer :: typeW = 2
+        real target_vel(3)
+        new_netron_data = cur_netron_data
         do
             total_mac_cross_section = 0
             
@@ -38,7 +40,7 @@ module process_manager
             do i = 1, env%count_nuclear
                 
                 !print*, cur_netron_data%energy
-                total_mac_current_cross_section_mas(i) = get_sigma(cur_netron_data%energy, env,i,1,3)*env%different_tipe_of_nuclear(i)%nuclear_dencity
+                total_mac_current_cross_section_mas(i) = get_sigma(new_netron_data%energy, env,i,1,0)*env%different_tipe_of_nuclear(i)%nuclear_dencity
             end do
             
             ! Выбор типа ядра
@@ -67,17 +69,27 @@ module process_manager
                 dTlocal = env%tem-294
                 if (dTlocal > 0.0) then
                     call tms_sample_target_energy( &
-                    cur_netron_data%energy, dTlocal, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, Eprime)
+                    new_netron_data%energy, dTlocal, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, Eprime,target_vel)
                  else
-                    Eprime = cur_netron_data%energy
+                    Eprime = new_netron_data%energy
                 end if
-                Stot_prime = get_sigma(Eprime,env,type_of_nuclie,1,0)*env%different_tipe_of_nuclear(type_of_nuclie)%nuclear_dencity
-                g_local = tms_g(cur_netron_data%energy, dTlocal, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear)
+                
+                Stot_prime = found_cross_section_from_energy( &
+                        Eprime, &
+                        294.0, &
+                        env, &
+                        env%different_tipe_of_nuclear(type_of_nuclie), &
+                        1) * &
+                        env%different_tipe_of_nuclear(type_of_nuclie)%nuclear_dencity
 
-                pacc = g_local * Stot_prime / total_mac_cross_section
+                g_local = tms_g(new_netron_data%energy, dTlocal, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear)
+
+                pacc = g_local * Stot_prime / total_mac_current_cross_section_mas(type_of_nuclie)
                 
                 pacc = min(1.0, max(0.0, pacc))
                 call random_number(u)
+                new_netron_data =  move_neutron_TMS_candidate(new_netron_data,env,294.0,3200.0,total_mac_cross_section)
+                    
                 if(u>pacc)then
                     deallocate(total_mac_current_cross_section_mas)
                     cycle
@@ -92,7 +104,18 @@ module process_manager
             ! Расчет микросечений для процессов (индексы: 2 - рассеяние, 3 - поглощение)
             total_micro_cross_section = 0.0
             do i = 2, env%different_tipe_of_nuclear(type_of_nuclie)%count_process
-                mic_current_cross_section_mas(i-1) = get_sigma(cur_netron_data%energy, env,type_of_nuclie,i,0)
+                if(typeW == 3)then
+                    
+                     mic_current_cross_section_mas(i-1) = &
+                        found_cross_section_from_energy( &
+                            Eprime, &
+                            294.0, &
+                            env, &
+                            env%different_tipe_of_nuclear(type_of_nuclie), &
+                            i)
+                else
+                    mic_current_cross_section_mas(i-1) = get_sigma(new_netron_data%energy, env,type_of_nuclie,i,0)
+                end if
             end do
             total_micro_cross_section = sum(mic_current_cross_section_mas)
             
@@ -107,17 +130,24 @@ module process_manager
             ! Выполнение выбранного процесса
             select case(type_of_process)
             case(1)
-                ! Рассеяние с дыигвющимися ядрами
-                new_netron_data = get_one_bump_netron_termalization(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie),env%tem,env)
-                
-                ! Рассеяние с покоящимися ядрами
-                !new_netron_data = get_one_bump_netron_slow_down(cur_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
-            case(2)
+                if(typeW == 3)then
+
+                    new_netron_data%speed_estimator = g_local*found_cross_section_from_energy(Eprime,294.0,env,env%different_tipe_of_nuclear(type_of_nuclie),2)*env%different_tipe_of_nuclear(type_of_nuclie)%nuclear_dencity/total_mac_cross_section
+                    new_netron_data = change_dir_TMS(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear,target_vel)
+                else
+                    ! Рассеяние с дыигвющимися ядрами
+                    !new_netron_data = get_one_bump_netron_termalization(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie),env%tem,env)
+                    
+                    ! Рассеяние с покоящимися ядрами
+                    new_netron_data = get_one_bump_netron_slow_down(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
+                    path = sqrt((new_netron_data%pos(1)-cur_netron_data%pos(1))**2+(new_netron_data%pos(2)-cur_netron_data%pos(2))**2+(new_netron_data%pos(3)-cur_netron_data%pos(3))**2)
+                    new_netron_data%speed_estimator = path * mic_current_cross_section_mas(2)
+                end if
+                case(2)
                 ! Поглощение
-                new_netron_data = get_absorption(cur_netron_data)
+                new_netron_data = get_absorption(new_netron_data)
             case default
                 print *, "ВНИМАНИЕ: Неизвестный тип процесса: ", type_of_process, p2, cur_netron_data%energy
-                new_netron_data = cur_netron_data
             end select
             
             ! Освобождаем память
@@ -160,8 +190,12 @@ module process_manager
         integer, intent(in) :: type_of_nuclie
         integer, intent(in) :: type_of_process
         integer, intent(in) :: typeWorking
+        integer index_enrgy
         real :: sigma, alpha
+
+        real :: kl(17)
         tem = env%tem
+        index_enrgy = 1
         select case(typeWorking)
             case(0)
                 sigma = found_cross_section_from_energy(energy,tem,env, env%different_tipe_of_nuclear(type_of_nuclie),type_of_process)
@@ -170,12 +204,15 @@ module process_manager
                 sigma = doplerBroadr(energy, env%different_tipe_of_nuclear(type_of_nuclie)%energy_point_in_table,&
                 env%different_tipe_of_nuclear(type_of_nuclie)%cross_data(type_of_process)%cross_section_point_in_table, &
                 alpha, size(env%different_tipe_of_nuclear(type_of_nuclie)%energy_point_in_table))
-            case(2)
-                if(type_of_nuclie == 2)then
-                    sigma = doplerBroadrOTF_MCNP(env%different_tipe_of_nuclear(type_of_nuclie), tem, energy)
-                else
-                    sigma = found_cross_section_from_energy(energy,tem,env, env%different_tipe_of_nuclear(type_of_nuclie),type_of_process)
-                end if
+            case(2) 
+                do while(energy>env%different_tipe_of_nuclear(type_of_nuclie)%e_uniq_grid(index_enrgy))
+                    index_enrgy = index_enrgy + 1
+                end do
+                
+                kl =env%different_tipe_of_nuclear(type_of_nuclie)%K_OTF(index_enrgy,type_of_process,1:17)
+                sigma = eval_expansion(tem,300.0,3200.0,8,kl)
+                !sigma = doplerBroadrOTF_MCNP(env%different_tipe_of_nuclear(type_of_nuclie), tem, energy)
+                
             case(3)
                 sigma = tms_nuclide_majorant(env%different_tipe_of_nuclear(type_of_nuclie),energy,294.0,3200.0,env,type_of_process)
         end select

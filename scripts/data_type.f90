@@ -31,7 +31,8 @@ module data_type
         real, dimension(:,:), allocatable ::coordinate_distribution_grid      ! Сетка по плотности вероятности ядер
         real, dimension(:), allocatable ::coordinate_velocity_grid          ! Сетка по скоростям ядер
         real, dimension(:), allocatable ::e_uniq_grid                       ! Сетка по уникальным энергиям (для OTF)
-        real, dimension(:,:), allocatable ::K_OTF                             
+        real, dimension(:,:,:), allocatable ::K_OTF   
+        
     end type nuclear_data
 
     !Таблица сечений для ядра 
@@ -48,7 +49,8 @@ module data_type
         real :: speed                                                       ! Скорость нейтрона
         real :: life_time = 0                                               ! Время рассеяния
         integer :: count_collision = 0                                      ! Количество испытанных столкновений
-        logical :: is_died = .False.                                        ! Флаг поглощенности нейтрона 
+        logical :: is_died = .False.                                        ! Флаг поглощенности нейтрона                 
+        real :: speed_estimator = 0 
     end type netron_data
 
 end module data_type

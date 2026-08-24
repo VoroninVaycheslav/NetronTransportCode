@@ -135,4 +135,294 @@ module operation_with_data
 
     end subroutine load_cross_section_fron_file
 
+    subroutine load_OTF_coefficients(filenames, nuclear_d)
+
+        character(len=*), intent(in) :: filenames(:)
+        type(nuclear_data), intent(inout) :: nuclear_d
+
+        integer :: unit_num, ios
+        integer :: n_rows, n_reactions
+        integer :: i, j, r
+        integer :: point_index
+
+        real :: energy_dummy
+        real :: error_dummy
+        real :: coeff(17)
+
+        character(len=2048) :: line
+
+
+        !============================================================
+        ! Количество реакций = количество файлов
+        !============================================================
+
+        n_reactions = size(filenames)
+
+        if (n_reactions <= 0) then
+            error stop "No OTF coefficient files"
+        end if
+
+
+        !============================================================
+        ! Первый файл:
+        ! определяем количество энергетических точек
+        !============================================================
+
+        open(newunit=unit_num, &
+            file=trim(filenames(1)), &
+            status="old", &
+            action="read", &
+            iostat=ios)
+
+        if (ios /= 0) then
+            print *, "Cannot open file: ", trim(filenames(1))
+            error stop
+        end if
+
+
+        n_rows = 0
+
+        do
+
+            read(unit_num, '(A)', iostat=ios) line
+
+            if (ios /= 0) exit
+
+            if (len_trim(line) == 0) cycle
+
+            n_rows = n_rows + 1
+
+        end do
+
+        close(unit_num)
+
+
+        if (n_rows <= 0) then
+            error stop "OTF coefficient file is empty"
+        end if
+
+
+        !============================================================
+        ! Выделяем трехмерный массив:
+        !
+        ! K_OTF(energy, reaction, coefficient)
+        !
+        ! 1 dimension -> energy point
+        ! 2 dimension -> reaction
+        ! 3 dimension -> C1...C17
+        !============================================================
+
+        if (allocated(nuclear_d%K_OTF)) then
+            deallocate(nuclear_d%K_OTF)
+        end if
+
+
+        allocate(nuclear_d%K_OTF(n_rows, n_reactions, 17))
+
+        nuclear_d%K_OTF = 0.0
+
+
+        !============================================================
+        ! Читаем ВСЕ файлы
+        !============================================================
+
+        do r = 1, n_reactions
+
+
+            open(newunit=unit_num, &
+                file=trim(filenames(r)), &
+                status="old", &
+                action="read", &
+                iostat=ios)
+
+
+            if (ios /= 0) then
+
+                print *, "Cannot open file: ", trim(filenames(r))
+                error stop
+
+            end if
+
+
+            !--------------------------------------------------------
+            ! Формат строки:
+            !
+            ! index energy C1 C2 ... C17 error
+            !
+            ! Сохраняем только C1...C17
+            !--------------------------------------------------------
+
+            do i = 1, n_rows
+
+
+                read(unit_num, *, iostat=ios) &
+                    point_index,              &
+                    energy_dummy,             &
+                    (coeff(j), j = 1,17),     &
+                    error_dummy
+
+
+                if (ios /= 0) then
+
+                    print *, "Error reading file:"
+                    print *, trim(filenames(r))
+                    print *, "Reaction =", r
+                    print *, "Line     =", i
+
+                    close(unit_num)
+
+                    error stop
+
+                end if
+
+
+                !====================================================
+                ! energy, reaction, coefficient
+                !====================================================
+
+                nuclear_d%K_OTF(i, r, 1:17) = coeff(1:17)
+
+
+            end do
+
+
+            !--------------------------------------------------------
+            ! Проверяем, что в файле нет дополнительных строк
+            !--------------------------------------------------------
+
+            do
+
+                read(unit_num, '(A)', iostat=ios) line
+
+                if (ios /= 0) exit
+
+                if (len_trim(line) /= 0) then
+
+                    print *, "Different number of energy points:"
+                    print *, trim(filenames(r))
+
+                    close(unit_num)
+
+                    error stop
+
+                end if
+
+            end do
+
+
+            close(unit_num)
+
+
+            print *, "Loaded reaction ", r, ": ", trim(filenames(r))
+
+
+        end do
+
+
+        print *, "========================================"
+        print *, "OTF coefficients loaded"
+        print *, "Energy points :", size(nuclear_d%K_OTF,1)
+        print *, "Reactions     :", size(nuclear_d%K_OTF,2)
+        print *, "Coefficients  :", size(nuclear_d%K_OTF,3)
+        print *, "========================================"
+
+
+    end subroutine load_OTF_coefficients
+
+    subroutine load_unique_energy_grid(filename, nuclear_d)
+
+        character(len=*), intent(in) :: filename
+        type(nuclear_data), intent(inout) :: nuclear_d
+
+        integer :: unit_num
+        integer :: ios
+        integer :: n_rows
+        integer :: i
+        real :: energy_value
+
+        ! ============================================================
+        ! Первый проход:
+        ! считаем количество энергетических точек
+        ! ============================================================
+
+        open(newunit=unit_num, &
+            file=trim(filename), &
+            status="old", &
+            action="read", &
+            iostat=ios)
+
+        if (ios /= 0) then
+            print *, "Cannot open unique energy grid file:"
+            print *, trim(filename)
+            error stop
+        end if
+
+        n_rows = 0
+
+        do
+            read(unit_num, *, iostat=ios) energy_value
+
+            if (ios < 0) exit
+
+            if (ios > 0) then
+                print *, "Error while reading energy grid"
+                error stop
+            end if
+
+            n_rows = n_rows + 1
+        end do
+
+        close(unit_num)
+
+
+        ! ============================================================
+        ! Выделяем массив e_uniq_grid
+        ! ============================================================
+
+        if (allocated(nuclear_d%e_uniq_grid)) then
+            deallocate(nuclear_d%e_uniq_grid)
+        end if
+
+        allocate(nuclear_d%e_uniq_grid(n_rows))
+
+        
+        ! ============================================================
+        ! Второй проход:
+        ! загружаем энергии
+        ! ============================================================
+
+        open(newunit=unit_num, &
+            file=trim(filename), &
+            status="old", &
+            action="read", &
+            iostat=ios)
+
+        if (ios /= 0) then
+            print *, "Cannot open unique energy grid file:"
+            print *, trim(filename)
+            error stop
+        end if
+
+        do i = 1, n_rows
+
+            read(unit_num, *, iostat=ios) nuclear_d%e_uniq_grid(i)
+
+            if (ios /= 0) then
+                print *, "Error reading energy point:", i
+                error stop
+            end if
+
+        end do
+
+        close(unit_num)
+
+
+        ! ============================================================
+        ! Информация
+        ! ============================================================
+
+        print *, "Unique energy grid loaded"
+        print *, "Number of energy points:", size(nuclear_d%e_uniq_grid)
+
+    end subroutine load_unique_energy_grid
 end module operation_with_data

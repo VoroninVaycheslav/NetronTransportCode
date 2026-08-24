@@ -81,16 +81,18 @@ contains
         Smaj = g * sigmax
     end function tms_nuclide_majorant
 
-    subroutine tms_sample_target_energy(E, dT, A, Eprime)
+    subroutine tms_sample_target_energy(E, dT, A, Eprime,target_velocity)
         real, intent(in)  :: E, dT, A
         real, intent(out) :: Eprime
+        real, intent(out) :: target_velocity(3)
 
         real :: kappa, x, y, mean_y, mix_mb
         real :: mu, vrel, denom, u, u1, u2
         real :: gx, gy, gz, sigma_comp
-
+        real phi
         if (dT <= 0.0) then
                 Eprime = E
+                target_velocity = 0.0
                 return
         end if
         kappa = sqrt(A/(KB_EV*dT))
@@ -120,9 +122,14 @@ contains
                 y = sqrt(-log(u1*u2))/kappa
             end if
 
+            call random_number(phi)
+            phi = 2.0 * acos(-1.0) * phi
+
             call random_number(u)
             mu = 2.0*u - 1.0
-
+            target_velocity(1) = 1.38e4 * y * sqrt(1.0 - mu**2) * cos(phi)
+            target_velocity(2) = 1.38e4 * y * sqrt(1.0 - mu**2) * sin(phi)
+            target_velocity(3) = 1.38e4 * y * mu
             vrel = sqrt(max(0.0, x*x + y*y - 2.0*x*y*mu))
             denom = x + y
 
