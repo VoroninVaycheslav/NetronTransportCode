@@ -99,10 +99,10 @@ module operation_with_data
         !Выделяем место под ядра в среде с проверкой
         allocate(env%different_tipe_of_nuclear(size_data_list), stat=err)
         if (err /= 0) then
-            print *, 'Ошибка выделения памяти! Код ошибки:', err
+            print *, 'error, code :', err
             stop
         else
-            print *, 'Добавлено ', size_data_list,'ядер в среду'
+            print *, 'Number of nuclie in this environment: ', size_data_list
         end if
 
         allocate(env%tem_grid(count_tem), stat=err)
@@ -112,7 +112,7 @@ module operation_with_data
             !Открываем файл и проверяем открытие
             open(1, file=directory_of_cross_section_data(i,1), status="old", action="read", iostat=err)
             if (err /= 0) then
-                print *, "ОШИБКА: Не удалось открыть файл: ", directory_of_cross_section_data(i,1)
+                print *, "error, opening file, code", directory_of_cross_section_data(i,1)
                 stop
             end if
 
@@ -127,19 +127,19 @@ module operation_with_data
             !выделяем пмять под столбец энергий и проверяем успех выделения
             allocate(env%different_tipe_of_nuclear(i)%energy_point_in_table(env%different_tipe_of_nuclear(i)%count_point), stat=err)
             if (err /= 0) then
-                print *, 'Ошибка выделения памяти! Код ошибки:', err
+                print *, 'error, code :', err
                 stop
             else
-                print *, 'Добавлено ', env%different_tipe_of_nuclear(i)%count_point,'точек в таблицу, для ядра ',env%different_tipe_of_nuclear(i)%name_of_nuclie
+                print *, 'load ', env%different_tipe_of_nuclear(i)%count_point,'point in table for nuclie ',env%different_tipe_of_nuclear(i)%name_of_nuclie
             end if
 
             !Выделяем память для количества столбцов по сечениям и проверяем успех
             allocate(env%different_tipe_of_nuclear(i)%cross_data(env%different_tipe_of_nuclear(i)%count_process), stat=err)
             if (err /= 0) then
-                print *, 'Ошибка выделения памяти! Код ошибки:', err
+                print *, 'error, code :', err
                 stop
             else
-                print *, 'Добавлено ', env%different_tipe_of_nuclear(i)%count_process,'типов процессов для ядра ',env%different_tipe_of_nuclear(i)%name_of_nuclie
+                print *, 'load ', env%different_tipe_of_nuclear(i)%count_process,'point in table for process ',env%different_tipe_of_nuclear(i)%name_of_nuclie
             end if
 
             !Считываем индекс процесса
@@ -149,10 +149,10 @@ module operation_with_data
             do j = 1, env%different_tipe_of_nuclear(i)%count_process
                 allocate(env%different_tipe_of_nuclear(i)%cross_data(j)%cross_section_point_in_table(env%different_tipe_of_nuclear(i)%count_point,count_tem), stat=err)
                 if (err /= 0) then
-                    print *, 'Ошибка выделения памяти! Код ошибки:', err
+                    print *, 'error, code :', err
                     stop
                 else
-                    print *, 'Добавлено ', env%different_tipe_of_nuclear(i)%count_point,'точек для ядра ',env%different_tipe_of_nuclear(i)%name_of_nuclie, 'для процесса с индексом ',env%different_tipe_of_nuclear(i)%cross_data(j)%index_of_process
+                    print *, 'Number of point: ', env%different_tipe_of_nuclear(i)%count_point,'for nuclie ',env%different_tipe_of_nuclear(i)%name_of_nuclie, 'for process ',env%different_tipe_of_nuclear(i)%cross_data(j)%index_of_process
                 end if
             end do
 
@@ -162,10 +162,10 @@ module operation_with_data
             end do
 
             do m = 2, count_tem
-                print *, "Загружаем данные о ядре ", m
+                print *, "load nuclie data ", m
                 open(newunit=unit_num, file=directory_of_cross_section_data(i,m), status="old", action="read", iostat=err)
                 if (err /= 0) then
-                    print *, "ОШИБКА: Не удалось открыть файл: ", directory_of_cross_section_data(i,m)
+                    print *, "error, opening file, code ", directory_of_cross_section_data(i,2)
                     stop
                 end if
                 do j = 1, env%different_tipe_of_nuclear(i)%count_point

@@ -22,6 +22,7 @@ program bilder
     use DoplerTrearmentNJOY
     use MCNPconfigOTF
     use Dopler_MCNP_OTF
+    use transport_input_reader
 
     implicit none
 
@@ -31,7 +32,7 @@ program bilder
     real integ,alpha                                                    ! Maxwell-CDF integral and Doppler alpha parameter.
     ! Main executable mode selector. This remains a source-level setting to preserve
     ! the original workflow; change the value before compilation when another mode is required.
-    integer :: typeWork = 3                                             ! 0=transport, 1=Doppler table generation, 2=OTF grid generation, 3=spatial-temperature study.
+    integer :: typeWork = 0                                             ! 0=transport, 1=Doppler table generation, 2=OTF grid generation, 3=spatial-temperature study.
     real :: start_time, end_time, elapsed_time                          ! CPU timing values [s].
     real :: dispersion = 0                                              ! Variance-like estimator used in FOM calculation.
     real :: age_of_netron = 0                                           ! Neutron-age estimator
@@ -44,8 +45,17 @@ program bilder
     type(enviroment) env                                                ! Material and nuclear-data environment.
     type(otf_config_type) conf                                          ! OTF preprocessing configuration.
 
+    type(transport_input_t) :: input
+    character(len=100), allocatable :: directory_of_cross_section_data(:, :)
+    character(len=100), allocatable :: directory_of_coeff_data(:)
+
+    integer :: n_nuclides
+    integer :: n_temperatures
+    integer :: n_reactions
+    integer :: current_index_nuclear
+    integer :: typeDopler
+
     real, allocatable :: Tgrid(:),TfitGrid(:)                           ! Legacy work grid plus union/fitting temperature grids.
-    character(len=100) :: directory_of_cross_section_data(2,8)          ! Cross-section input paths: nuclide x temperature.
     character(len=100) :: directory_of_coeff_data_Carbon(3)             ! Carbon OTF coefficient files by reaction.
     character(len=100) :: directory_of_coeff_data_Uranium(3)            ! Uranium OTF coefficient files by reaction.
     character(len=100) :: file_name                                     ! Generated output filename.
@@ -53,41 +63,58 @@ program bilder
     real:: local_count_lived(8) = 0                                     ! Counts used to normalize the local estimators.
     real :: localPos = 0.0                                              ! Current neutron radial distance from the origin.
 
+    call read_transport_input('test.txt', input)   
+    N = input%histories
+
+    tem = nint(input%doppler_table_temperature_k)
+
+    typeWork = input%run_mode
+    typeDopler = input%xs_method
+
+    count_point = input%maxwell_grid_points
+
+
+
     allocate(netrons(N))
-    !Reader: write direction to using file
-        directory_of_cross_section_data(1,1) = "dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt"
-        directory_of_cross_section_data(1,2) = "dataBaseOfCrossSection/Cross-section-data-Carbon-400.txt"
-        directory_of_cross_section_data(1,3) = "dataBaseOfCrossSection/Cross-section-data-Carbon-800.txt"
-        directory_of_cross_section_data(1,4) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1200.txt"
-        directory_of_cross_section_data(1,5) = "dataBaseOfCrossSection/Cross-section-data-Carbon-1800.txt"
-        directory_of_cross_section_data(1,6) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2200.txt"
-        directory_of_cross_section_data(1,7) = "dataBaseOfCrossSection/Cross-section-data-Carbon-2800.txt"
-        directory_of_cross_section_data(1,8) = "dataBaseOfCrossSection/Cross-section-data-Carbon-3200.txt"
-
-        directory_of_cross_section_data(2,1) = "dataBaseOfCrossSection/Cross-section-data-Uranium-294.txt"
-        directory_of_cross_section_data(2,2) = "dataBaseOfCrossSection/Cross-section-data-Uranium-400.txt"
-        directory_of_cross_section_data(2,3) = "dataBaseOfCrossSection/Cross-section-data-Uranium-800.txt"
-        directory_of_cross_section_data(2,4) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1200.txt"
-        directory_of_cross_section_data(2,5) = "dataBaseOfCrossSection/Cross-section-data-Uranium-1800.txt"
-        directory_of_cross_section_data(2,6) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2200.txt"
-        directory_of_cross_section_data(2,7) = "dataBaseOfCrossSection/Cross-section-data-Uranium-2800.txt"
-        directory_of_cross_section_data(2,8) = "dataBaseOfCrossSection/Cross-section-data-Uranium-3200.txt"
-
-        directory_of_coeff_data_Carbon(1) = "CoefData/coefficients-MT-1-Carbon.txt"
-        directory_of_coeff_data_Carbon(2) = "CoefData/coefficients-MT-2-Carbon.txt"
-        directory_of_coeff_data_Carbon(3) = "CoefData/coefficients-MT-102-Carbon.txt"
-        
-        directory_of_coeff_data_Uranium(1) = "CoefData/coefficients-MT-1-Uranium.txt"
-        directory_of_coeff_data_Uranium(2) = "CoefData/coefficients-MT-2-Uranium.txt"
-        directory_of_coeff_data_Uranium(3) = "CoefData/coefficients-MT-102-Uranium.txt"
-    !
-    call load_cross_section_fron_file(2,8,directory_of_cross_section_data,env)
     
-    call load_OTF_coefficients(directory_of_coeff_data_Carbon,env%different_tipe_of_nuclear(1))
-    call load_OTF_coefficients(directory_of_coeff_data_Uranium,env%different_tipe_of_nuclear(2))
+    n_nuclides = input%n_nuclides
 
-    call load_unique_energy_grid("CoefData/unique-energy-grid-Carbon.txt",env%different_tipe_of_nuclear(1))
-    call load_unique_energy_grid("CoefData/unique-energy-grid-Uranium.txt",env%different_tipe_of_nuclear(2))
+    n_temperatures = input%nuclide(1)%n_xs
+
+    allocate(directory_of_cross_section_data(n_nuclides, n_temperatures))
+    print*,n_nuclides,n_temperatures
+    do i = 1, n_nuclides
+        do j = 1, n_temperatures
+            directory_of_cross_section_data(i,j) = adjustl(trim(input%nuclide(i)%xs_file(j)))
+        end do
+    end do
+    print*,directory_of_cross_section_data(2,2)
+    
+
+    call load_cross_section_fron_file(n_nuclides,n_temperatures,directory_of_cross_section_data,env)
+    
+    do i = 1, n_nuclides
+        n_reactions = input%nuclide(i)%n_otf
+        print*,n_reactions
+        allocate(directory_of_coeff_data(n_reactions))
+        print*,size(directory_of_coeff_data)
+        do j = 1, n_reactions
+            if(env%different_tipe_of_nuclear(i)%name_of_nuclie == input%nuclide(j)%name) then
+                current_index_nuclear = j
+            end if
+        end do
+
+        do j = 1, n_reactions
+            directory_of_coeff_data(j) = input%nuclide(i)%otf_coeff_file(j)
+        end do
+        
+        call load_OTF_coefficients(directory_of_coeff_data,env%different_tipe_of_nuclear(current_index_nuclear))
+        call load_unique_energy_grid(input%nuclide(i)%otf_grid_file,env%different_tipe_of_nuclear(current_index_nuclear))
+        deallocate(directory_of_coeff_data)
+    end do
+
+
+
     env%tem_grid = [294.0,400.0,800.0,1200.0,1800.0,2200.0,2800.0, 3200.0]
     
     select case(typeWork)
@@ -105,7 +132,7 @@ program bilder
                 env%different_tipe_of_nuclear(i)%count_point_vel_distr=count_point
                 do j = 1,8
                     call get_temp(env%tem_grid(j))
-                    do r = 0, count_point
+                    do r = 1, count_point
                         integ = integrate_function(maxwell_speed_distribution,0.0,real(r),10000)
                         env%different_tipe_of_nuclear(i)%coordinate_distribution_grid(r,j) = integ
                         env%different_tipe_of_nuclear(i)%coordinate_velocity_grid(r) = r
@@ -116,10 +143,30 @@ program bilder
             netrons = give_random_direction(N,100.0)
             call cpu_time(start_time)
             ! Transport each neutron independently until absorption or the 1 eV cutoff.
+            env%tem = 1200
             do i = 1, N
                 do while (.not. netrons(i)%is_died .and. netrons(i)%energy > 1)
-                    netrons(i) = collision_controller(netrons(i), env)
-
+                    netrons(i) = collision_controller(netrons(i), env,typeDopler)
+                ! Check the position of the neutron and assign the appropriate temperature
+                    localPos = sqrt(netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2)
+                    if(localPos > 2.0 .and. localPos < 4.0)then
+                        local_speed_estimator(2) = local_speed_estimator(2)+netrons(i)%speed_estimator
+                    else if(localPos > 4.0 .and. localPos < 6.0)then
+                        local_speed_estimator(3) = local_speed_estimator(3)+netrons(i)%speed_estimator
+                    else if(localPos > 6.0 .and. localPos < 8.0)then
+                        local_speed_estimator(4) = local_speed_estimator(4)+netrons(i)%speed_estimator
+                    else if(localPos > 8.0 .and. localPos < 10.0)then
+                        local_speed_estimator(5) = local_speed_estimator(5)+netrons(i)%speed_estimator
+                    else if(localPos > 10.0 .and. localPos < 12.0)then
+                        local_speed_estimator(6) = local_speed_estimator(6)+netrons(i)%speed_estimator
+                    else if(localPos > 12.0 .and. localPos < 15.0)then
+                        local_speed_estimator(7) = local_speed_estimator(7)+netrons(i)%speed_estimator
+                    else if(localPos > 15.0)then
+                        local_speed_estimator(8) = local_speed_estimator(8)+netrons(i)%speed_estimator
+                    else
+                        local_speed_estimator(1) = local_speed_estimator(1)+netrons(i)%speed_estimator
+                    end if
+                !
                 end do 
                 age_of_netron = netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2 + age_of_netron
                 averageCollision = averageCollision + netrons(i)%count_collision
@@ -130,6 +177,35 @@ program bilder
                 end if
             end do 
             call cpu_time(end_time)
+            do i = 1, N
+                
+                localPos = sqrt(netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2)
+                if(localPos < 2.0)then
+                    local_count_lived(1) = local_count_lived(1) + 1
+                end if
+                if(localPos < 4.0)then
+                    local_count_lived(2) = local_count_lived(2) + 1
+                end if
+                if(localPos < 6.0)then
+                    local_count_lived(3) = local_count_lived(3) + 1
+                end if
+                if(localPos < 8.0)then
+                    local_count_lived(4) = local_count_lived(4) + 1
+                end if
+                if(localPos < 10.0)then
+                    local_count_lived(5) = local_count_lived(5) + 1
+                end if
+                if(localPos < 12.0)then
+                    local_count_lived(6) = local_count_lived(6) + 1
+                end if
+                if(localPos < 15.0)then
+                    local_count_lived(7) = local_count_lived(7) + 1
+                end if
+                if(localPos < 100.0)then
+                    local_count_lived(8) = local_count_lived(8) + 1
+                end if
+
+            end do
             livedDistance = livedDistance/countLivedNetron
             age_of_netron = age_of_netron/real(N)
             averageCollision = averageCollision/real(N)
@@ -146,6 +222,17 @@ program bilder
             print *, "Растояние пройденное без поглащения: ", livedDistance
             print *, "Время работы программы: ", elapsed_time
             print *, "FOM: ", 1/(elapsed_time*dispersion)
+
+            
+            print*, "Speen of adsorption on the distans = 2 cm: ", local_speed_estimator(1)/local_count_lived(1)
+            print*, "Speen of adsorption on the distans = 4 cm: ", local_speed_estimator(2)/local_count_lived(2)
+            print*, "Speen of adsorption on the distans = 6 cm: ", local_speed_estimator(3)/local_count_lived(3)
+            print*, "Speen of adsorption on the distans = 8 cm: ", local_speed_estimator(4)/local_count_lived(4)
+            print*, "Speen of adsorption on the distans = 10 cm: ", local_speed_estimator(5)/local_count_lived(5)
+            print*, "Speen of adsorption on the distans = 12 cm: ", local_speed_estimator(6)/local_count_lived(6)
+            print*, "Speen of adsorption on the distans = 15 cm: ", local_speed_estimator(7)/local_count_lived(7)
+            print*, "Speen of adsorption on the distans > 15 cm: ", local_speed_estimator(8)/local_count_lived(8)
+    
         case(1)
         !--------------------------------------------------------------------------
         ! Mode 1: Generate Doppler-broadened cross-section tables at temperature tem.
@@ -208,7 +295,7 @@ program bilder
                 localPos = 0.0
                 env%tem = 3200.0
                 do while (.not. netrons(i)%is_died .and. netrons(i)%energy > 1)
-                    netrons(i) = collision_controller(netrons(i), env)
+                    netrons(i) = collision_controller(netrons(i), env,typeDopler)
                 ! Check the position of the neutron and assign the appropriate temperature
                     localPos = sqrt(netrons(i)%pos(1)**2+netrons(i)%pos(2)**2+netrons(i)%pos(3)**2)
                     if(localPos > 2.0 .and. localPos < 4.0)then

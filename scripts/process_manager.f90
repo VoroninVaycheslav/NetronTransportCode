@@ -42,10 +42,11 @@ module process_manager
     !
     !==============================================================================
 
-    function collision_controller(cur_netron_data, env) result(new_netron_data)
+    function collision_controller(cur_netron_data, env,typeW) result(new_netron_data)
         
         type(netron_data), intent(in) :: cur_netron_data                        
-        type(enviroment), intent(in) :: env                                     
+        type(enviroment), intent(in) :: env 
+        integer, intent(in) :: typeW                                    
         type(netron_data) :: new_netron_data                                    
         
         real, allocatable :: mic_current_cross_section_mas(:)                   ! Reaction microscopic cross sections for the selected nuclide.
@@ -63,7 +64,7 @@ module process_manager
         ! 2 = OTF fitted expansion  [current preserved default]
         ! 3 = TMS majorant / rejection branch
         ! NOTE: this remains local and hard-coded to preserve validated behavior.
-        integer :: typeW = 2
+       
         real target_vel(3)
         new_netron_data = cur_netron_data
         do
@@ -74,7 +75,7 @@ module process_manager
             ! Build macroscopic total cross sections for all nuclides.
             do i = 1, env%count_nuclear
                 
-                total_mac_current_cross_section_mas(i) = get_sigma(new_netron_data%energy, env,i,1,0)*env%different_tipe_of_nuclear(i)%nuclear_dencity
+                total_mac_current_cross_section_mas(i) = get_sigma(new_netron_data%energy, env,i,1,typeW)*env%different_tipe_of_nuclear(i)%nuclear_dencity
             end do
             
             ! Sum macroscopic cross sections before probabilistic nuclide selection.
@@ -148,7 +149,7 @@ module process_manager
                             env%different_tipe_of_nuclear(type_of_nuclie), &
                             i)
                 else
-                    mic_current_cross_section_mas(i-1) = get_sigma(new_netron_data%energy, env,type_of_nuclie,i,0)
+                    mic_current_cross_section_mas(i-1) = get_sigma(new_netron_data%energy, env,type_of_nuclie,i,typeW)
                 end if
             end do
             total_micro_cross_section = sum(mic_current_cross_section_mas)
@@ -170,10 +171,10 @@ module process_manager
                     new_netron_data = change_dir_TMS(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear,target_vel)
                 else
                     ! Рассеяние с дыигвющимися ядрами
-                    !new_netron_data = get_one_bump_netron_termalization(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie),env%tem,env)
+                    new_netron_data = get_one_bump_netron_termalization(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section,env%different_tipe_of_nuclear(type_of_nuclie),env%tem,env)
                     
                     ! Рассеяние с покоящимися ядрами
-                    new_netron_data = get_one_bump_netron_slow_down(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
+                    !new_netron_data = get_one_bump_netron_slow_down(new_netron_data, env%different_tipe_of_nuclear(type_of_nuclie)%mass_of_nuclear, total_mac_cross_section)
                     path = sqrt((new_netron_data%pos(1)-cur_netron_data%pos(1))**2+(new_netron_data%pos(2)-cur_netron_data%pos(2))**2+(new_netron_data%pos(3)-cur_netron_data%pos(3))**2)
                     new_netron_data%speed_estimator = path * mic_current_cross_section_mas(2)
                 end if
