@@ -1,0 +1,63 @@
+# ============================================================
+# GENERAL CALCULATION SETTINGS
+# ============================================================
+
+RUN_MODE = SPATIAL_TRANSPORT
+XS_METHOD = OTF
+
+HISTORIES = 100
+
+SOURCE_ENERGY_EV = 100.0
+ENERGY_CUTOFF_EV = 1.0
+
+DOPPLER_TABLE_TEMPERATURE_K = 3200.0
+MAXWELL_GRID_POINTS = 500
+
+
+# ============================================================
+# NUCLIDE 1: CARBON
+# ============================================================
+
+BEGIN_NUCLIDE Carbon
+
+XS 294  = dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt
+XS 400  = dataBaseOfCrossSection/Cross-section-data-Carbon-400.txt
+XS 800  = dataBaseOfCrossSection/Cross-section-data-Carbon-800.txt
+XS 1200 = dataBaseOfCrossSection/Cross-section-data-Carbon-1200.txt
+XS 1800 = dataBaseOfCrossSection/Cross-section-data-Carbon-1800.txt
+XS 2200 = dataBaseOfCrossSection/Cross-section-data-Carbon-2200.txt
+XS 2800 = dataBaseOfCrossSection/Cross-section-data-Carbon-2800.txt
+XS 3200 = dataBaseOfCrossSection/Cross-section-data-Carbon-3200.txt
+
+OTF_GRID = CoefData/unique-energy-grid-Carbon.txt
+
+OTF_MT 1   = CoefData/coefficients-MT-1-Carbon.txt
+OTF_MT 2   = CoefData/coefficients-MT-2-Carbon.txt
+OTF_MT 102 = CoefData/coefficients-MT-102-Carbon.txt
+
+END_NUCLIDE
+
+
+# ============================================================
+# NUCLIDE 2: URANIUM
+# ============================================================
+
+BEGIN_NUCLIDE Uranium
+
+XS 294  = dataBaseOfCrossSection/Cross-section-data-Uranium-294.txt
+XS 400  = dataBaseOfCrossSection/Cross-section-data-Uranium-400.txt
+XS 800  = dataBaseOfCrossSection/Cross-section-data-Uranium-800.txt
+XS 1200 = dataBaseOfCrossSection/Cross-section-data-Uranium-1200.txt
+XS 1800 = dataBaseOfCrossSection/Cross-section-data-Uranium-1800.txt
+XS 2200 = dataBaseOfCrossSection/Cross-section-data-Uranium-2200.txt
+XS 2800 = dataBaseOfCrossSection/Cross-section-data-Uranium-2800.txt
+XS 3200 = dataBaseOfCrossSection/Cross-section-data-Uranium-3200.txt
+
+OTF_GRID = CoefData/unique-energy-grid-Uranium.txt
+
+OTF_MT 1   = CoefData/coefficients-MT-1-Uranium.txt
+OTF_MT 2   = CoefData/coefficients-MT-2-Uranium.txt
+OTF_MT 102 = CoefData/coefficients-MT-102-Uranium.txt
+
+END_NUCLIDE
+END_PROGRAM
