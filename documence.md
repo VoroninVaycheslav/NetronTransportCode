@@ -41,11 +41,13 @@ ___
 15. Геометрический модуль и распределение температуры в пространстве
 
 **Часть 3. ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС**  
-1. Расположение входных данных и их подключение к программе
-2. Режимы работы программы и переключение между ними 
-3. Выбор режима с/без движения ядер
-4. Выбор метода учета доплеровского уширения
-&nbsp;
+1. Входной файл `input.txt` и его синтаксис  
+2. Общие правила оформления  
+3. Глобальные параметры расчета  
+4. Карточка нуклида `BEGIN_NUCLIDE ... END_NUCLIDE`  
+5. Подключение температурных таблиц сечений `XS`  
+6.  Подключение OTF-библиотеки `OTF_GRID` и `OTF_MT`  
+7. Полный пример входного файла  
 
 
 ---
@@ -945,246 +947,367 @@ typeWork = 3
 | `r > 15 cm` | `294 K` |
 ## Часть 3. ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС
 
-### 1. Расположение входных данных и их подключение к программе
+### 1. Входной файл `input.txt` и его синтаксис
 
-&nbsp;В текущей версии конфигурационный input-файл отсутствует. Параметры и пути задаются непосредственно в `bilder.f90`.
+&nbsp;Для запуска программы необходимо сначала создать файл и разместить в папке scripts файл с названием `test.txt`. С помощью этого файла в дальнейшем осуществляется запуск программы и задача требуемых параметров. Входной файл не содержит непосредственно числовые таблицы сечений. В нем указываются параметры запуска и пути к уже подготовленным библиотекам. 
 
-#### 1.1 Обычные библиотеки
-
-```text
-dataBaseOfCrossSection/
-```
-
-В текущем коде:
-
-```Fortran
-directory_of_cross_section_data(2,8)
-```
-
-Первый индекс задает нуклид:
-
-```text
-1 -> Carbon
-2 -> Uranium
-```
-
-Второй индекс задает температурный файл:
-
-```text
-1 -> 294 K
-2 -> 400 K
-3 -> 800 K
-4 -> 1200 K
-5 -> 1800 K
-6 -> 2200 K
-7 -> 2800 K
-8 -> 3200 K
-```
-
-Полный набор Carbon:
-
-```text
-Cross-section-data-Carbon-294.txt
-Cross-section-data-Carbon-400.txt
-Cross-section-data-Carbon-800.txt
-Cross-section-data-Carbon-1200.txt
-Cross-section-data-Carbon-1800.txt
-Cross-section-data-Carbon-2200.txt
-Cross-section-data-Carbon-2800.txt
-Cross-section-data-Carbon-3200.txt
-```
-
-Uranium аналогично.
 
 ---
 
-#### 1.2 OTF-библиотеки
+#### 1.1. Общие правила оформления
+
+В синтаксисе входного файла можно выделить три типа команд:
+
+1. Команда `#` - явялется комментраеим и используется когда нужно ввести какие-то заметки в стартовый файл, например, например, разделить фходной файл на блоки, в которых бы задавались ядра и общая информация моделирвоания.
+2. Команда задаваемая по следующему виду:
 
 ```text
-CoefData/
+KEY = VALUE
 ```
 
-Набор Carbon:
+Например:
 
 ```text
-unique-energy-grid-Carbon.txt
-coefficients-MT-1-Carbon.txt
-coefficients-MT-2-Carbon.txt
-coefficients-MT-102-Carbon.txt
+HISTORIES = 100000
 ```
 
-Набор Uranium:
+При чтении строка разделяется по символу `=` на две части:
 
 ```text
-unique-energy-grid-Uranium.txt
-coefficients-MT-1-Uranium.txt
-coefficients-MT-2-Uranium.txt
-coefficients-MT-102-Uranium.txt
+KEY   -> HISTORIES
+VALUE -> 100000
+```
+
+После чего значение преобразуется к требуемому типу данных и записывается во внутреннюю структуру `input`.
+
+Рассмотрим основные доступные ключи в программе:
+
+| RUN_MODE                    | Определяет, какой сценарий будет работать                                             |
+|-----------------------------|---------------------------------------------------------------------------------------|
+| XS_METHOOD                  | Определяет, какой метод будет использоваться для реализации доплерэффекта в программе |
+| HISTORIES                   | Количество нейтронных историй при запуске                                             |
+| SOURCE_ENERGY_EV            | Начальная энергия нейтронов                                                           |
+| ENERGY_CUTOFF_EV            | конечная энергия нейтронов                                                            |
+| DOPPLER_TABLE_TEMPERATURE_K | Температра для моделирование таблиц с сечениями после доплеровского уширения          |
+| MAXWELL_GRID_POINT          | Количество точек в распределение максвела для двигающихся ядер                        |
+| XS temperature_K            | Загрузка файла с сечением, требует задания температуры temperature_K                  |
+| OTF_GRID                    | Загружает из данных файл с универсальной сеткой энергий                               |
+| OTF_MT index_process        | Загружает таблицу с коэффициентами для индекса процесса index_process                 |
+
+3. Команда начала и конца карточки нуклида `BEGIN_NUCLIDE ... END_NUCLIDE`, а также окончания программы `END_PROGRAME`
+
+---
+
+#### 1.2. Глобальные параметры расчета
+
+Глобальные параметры располагаются вне карточек `BEGIN_NUCLIDE ... END_NUCLIDE`. Они описывают режим всей программы и общие параметры запуска.
+
+Пример:
+
+```text
+RUN_MODE = SPATIAL_TRANSPORT
+XS_METHOD = OTF
+
+HISTORIES = 100000
+
+SOURCE_ENERGY_EV = 100.0
+ENERGY_CUTOFF_EV = 1.0
+
+DOPPLER_TABLE_TEMPERATURE_K = 3200.0
+MAXWELL_GRID_POINTS = 500
+```
+
+Рассмотрим некоторые параметр отдельно.
+
+##### `RUN_MODE`
+
+```text
+RUN_MODE = SPATIAL_TRANSPORT
+```
+
+Параметр определяет **какой сценарий работы должна выполнить программа**.
+
+Поддерживаются значения:
+
+| значение в `transport.txt` | внутреннее значение | назначение |
+|---|---:|---|
+| `TRANSPORT` | `0` | обычный транспорт нейтронов |
+| `DOPPLER_TABLE` | `1` | генерация Doppler-таблицы |
+| `OTF_PREPROCESS` | `2` | подготовка OTF энергетической сетки |
+| `SPATIAL_TRANSPORT` | `3` | транспорт при пространственно изменяющейся температуре |
+
+Например:
+
+```text
+RUN_MODE = TRANSPORT
+```
+
+означает запуск обычного транспортного расчета.
+
+```text
+RUN_MODE = SPATIAL_TRANSPORT
+```
+
+означает запуск транспортного расчета, в котором температура среды меняется в зависимости от положения нейтрона.
+
+
+---
+
+##### `XS_METHOD`
+
+```text
+XS_METHOD = OTF
+```
+
+Параметр определяет **каким способом в транспортном расчете будет получаться сечение взаимодействия**.
+
+Поддерживаются четыре варианта:
+
+| значение в `transport.txt` | внутреннее значение | способ получения сечения |
+|---|---:|---|
+| `TABLE` | `0` | поиск и интерполяция по температурным таблицам |
+| `NJOY` | `1` | непосредственный расчет через `doplerBroadr` |
+| `OTF` | `2` | восстановление сечения по OTF коэффициентам |
+| `TMS` | `3` | TMS majorant и Target Motion Sampling |
+
+Например:
+
+```text
+RUN_MODE = TRANSPORT
+XS_METHOD = OTF
+```
+
+означает:
+
+> выполнить обычный транспорт нейтронов, а сечения во время расчета получать из OTF-библиотеки.
+
+При этом `RUN_MODE` и `XS_METHOD` задают разные характеристики расчета:
+
+```text
+RUN_MODE
+   |
+   `--> что делает программа?
+
+XS_METHOD
+   |
+   `--> каким способом определяется sigma(E,T)?
 ```
 
 ---
 
-#### 1.3 Порядок загрузки в `bilder`
+#### 1.3. Карточка нуклида `BEGIN_NUCLIDE ... END_NUCLIDE`
 
-Независимо от выбранного `typeWork`, до `select case` выполняются:
+&nbsp;Материал задается последовательностью карточек нуклидов. Каждая карточка полностью описывает набор библиотек одного нуклида.
 
-```Fortran
-load_cross_section_fron_file
-
-load_OTF_coefficients
-load_OTF_coefficients
-
-load_unique_energy_grid
-load_unique_energy_grid
-```
-
-После этого вручную задается:
-
-```Fortran
-env%tem_grid =
-[294.0,400.0,800.0,1200.0, &
- 1800.0,2200.0,2800.0,3200.0]
-```
-
-То есть все основные библиотеки оказываются в памяти до начала конкретного сценария.
-
----
-
-### 2. Режимы работы программы и переключение между ними
-
-Главный параметр:
-
-```Fortran
-integer :: typeWork = 3
-```
-
-| `typeWork` | режим |
-|---:|---|
-| `0` | transport |
-| `1` | генерация Doppler table |
-| `2` | OTF union-grid preprocessing |
-| `3` | spatial-temperature transport |
-
----
-
-#### 2.1 `typeWork = 0`
-
-Основные действия:
+Общий синтаксис:
 
 ```text
-построить Maxwell tables
-        |
-        v
-give_random_direction
-        |
-        v
-collision_controller
-        |
-        v
-statistics
+BEGIN_NUCLIDE <name>
+
+    данные нуклида
+
+END_NUCLIDE
+```
+
+Например:
+
+```text
+BEGIN_NUCLIDE Carbon
+
+XS 294 = dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt
+
+OTF_GRID = CoefData/unique-energy-grid-Carbon.txt
+OTF_MT 1 = CoefData/coefficients-MT-1-Carbon.txt
+
+END_NUCLIDE
 ```
 
 ---
 
-#### 2.2 `typeWork = 1`
+#### 1.4. Подключение температурных таблиц сечений `XS`
 
-Для каждого нуклида создается:
-
-```Fortran
-file_name =
-"output/Cross-section-data-" //
-name //
-"-" //
-int_to_str(tem) //
-".txt"
-```
-
-В текущем output записываются:
+Для подключения сечения используется конструкция:
 
 ```text
-energy broadened_sigma_1 broadened_sigma_2 broadened_sigma_3
+XS <temperature_K> = <path_to_file>
 ```
 
-Код записи данных:
+Например:
 
 ```text
-name
-index
-mass
-density
+XS 294 = dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt
+```
+
+Левая часть содержит температуру:
+
+```text
+XS 294
+   |
+   `--> 294 K
+```
+
+Правая часть содержит путь к таблице:
+
+```text
+dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt
+```
+
+Индекс температуры и индекс файла всегда совпадают.
+
+Для текущей реализации среды рекомендуется задавать для всех нуклидов одинаковую температурную сетку и в одинаковом порядке. Например:
+
+```text
+294, 400, 800, 1200, 1800, 2200, 2800, 3200 K
+```
+
+Первый `XS`-файл нуклида имеет особое значение. Как описано ранее, базовый файл содержит не только таблицу сечений, но также:
+
+```text
+name_of_nuclie
+index_of_nuclie
+mass_of_nuclear
+nuclear_density
 count_process
 count_point
-MT indexes
+index_of_process
 ```
 
-в текущей версии закомментирован.
+Поэтому эти данные **не дублируются** в `transport.txt`.
 
 ---
 
-#### 2.3 `typeWork = 2`
+#### 1.5. Подключение OTF-библиотеки `OTF_GRID` и `OTF_MT`
 
-Создаются:
+При использовании:
 
-```Fortran
-Tgrid
-TfitGrid
+```text
+XS_METHOD = OTF
 ```
 
-Далее `e_uniq_grid` инициализируется исходной энергетической сеткой и вызывается:
+для каждого нуклида должна быть указана OTF-библиотека.
 
-```Fortran
-build_union_grid
+Она состоит из двух типов файлов.
+
+##### Уникальная энергетическая сетка
+
+Синтаксис:
+
+```text
+OTF_GRID = <path_to_unique_energy_grid>
 ```
 
-В текущем `bilder` на этом режим заканчивается выводом размеров сеток.
+Пример для Carbon:
 
-Как отмечено выше:
-
-```Fortran
-build_coefficients
+```text
+OTF_GRID = CoefData/unique-energy-grid-Carbon.txt
 ```
-
-и запись coefficient library не вызываются.
 
 ---
 
-#### 2.4 `typeWork = 3`
+##### Файлы коэффициентов по реакциям
 
-Выполняется:
+Синтаксис:
 
-1. построение Maxwell tables;
-2. создание источника;
-3. transport;
-4. после каждого столкновения расчет `localPos`;
-5. изменение `env%tem`;
-6. накопление локального `speed_estimator`;
-7. итоговая статистика.
+```text
+OTF_MT <MT> = <path_to_coefficients>
+```
+
+Например:
+
+```text
+OTF_MT 1   = CoefData/coefficients-MT-1-Carbon.txt
+OTF_MT 2   = CoefData/coefficients-MT-2-Carbon.txt
+OTF_MT 102 = CoefData/coefficients-MT-102-Carbon.txt
+```
+
+Здесь:
+
+```text
+OTF_MT 1
+       |
+       `--> реакция MT = 1
+```
+
+а правая часть содержит файл коэффициентов именно этой реакции.
+
+
+Связь между номером реакции и файлом имеет вид:
+
+```text
+MT = 1   -> coefficients-MT-1-Carbon.txt
+MT = 2   -> coefficients-MT-2-Carbon.txt
+MT = 102 -> coefficients-MT-102-Carbon.txt
+```
 
 ---
 
-### 3. Выбор метода учета доплеровского уширения
+#### 1.6. Полный пример входного файла
 
-Функция:
+Ниже приведен полный пример конфигурации для среды, содержащей Carbon и Uranium, при запуске пространственного транспортного расчета с использованием OTF-библиотеки.
 
-```Fortran
-get_sigma
+```text
+# ============================================================
+# GENERAL CALCULATION SETTINGS
+# ============================================================
+
+RUN_MODE = SPATIAL_TRANSPORT
+XS_METHOD = OTF
+
+HISTORIES = 100000
+
+SOURCE_ENERGY_EV = 100.0
+ENERGY_CUTOFF_EV = 1.0
+
+DOPPLER_TABLE_TEMPERATURE_K = 3200.0
+MAXWELL_GRID_POINTS = 500
+
+
+# ============================================================
+# NUCLIDE 1: CARBON
+# ============================================================
+
+BEGIN_NUCLIDE Carbon
+
+XS 294  = dataBaseOfCrossSection/Cross-section-data-Carbon-294.txt
+XS 400  = dataBaseOfCrossSection/Cross-section-data-Carbon-400.txt
+XS 800  = dataBaseOfCrossSection/Cross-section-data-Carbon-800.txt
+XS 1200 = dataBaseOfCrossSection/Cross-section-data-Carbon-1200.txt
+XS 1800 = dataBaseOfCrossSection/Cross-section-data-Carbon-1800.txt
+XS 2200 = dataBaseOfCrossSection/Cross-section-data-Carbon-2200.txt
+XS 2800 = dataBaseOfCrossSection/Cross-section-data-Carbon-2800.txt
+XS 3200 = dataBaseOfCrossSection/Cross-section-data-Carbon-3200.txt
+
+OTF_GRID = CoefData/unique-energy-grid-Carbon.txt
+
+OTF_MT 1   = CoefData/coefficients-MT-1-Carbon.txt
+OTF_MT 2   = CoefData/coefficients-MT-2-Carbon.txt
+OTF_MT 102 = CoefData/coefficients-MT-102-Carbon.txt
+
+END_NUCLIDE
+
+
+# ============================================================
+# NUCLIDE 2: URANIUM
+# ============================================================
+
+BEGIN_NUCLIDE Uranium
+
+XS 294  = dataBaseOfCrossSection/Cross-section-data-Uranium-294.txt
+XS 400  = dataBaseOfCrossSection/Cross-section-data-Uranium-400.txt
+XS 800  = dataBaseOfCrossSection/Cross-section-data-Uranium-800.txt
+XS 1200 = dataBaseOfCrossSection/Cross-section-data-Uranium-1200.txt
+XS 1800 = dataBaseOfCrossSection/Cross-section-data-Uranium-1800.txt
+XS 2200 = dataBaseOfCrossSection/Cross-section-data-Uranium-2200.txt
+XS 2800 = dataBaseOfCrossSection/Cross-section-data-Uranium-2800.txt
+XS 3200 = dataBaseOfCrossSection/Cross-section-data-Uranium-3200.txt
+
+OTF_GRID = CoefData/unique-energy-grid-Uranium.txt
+
+OTF_MT 1   = CoefData/coefficients-MT-1-Uranium.txt
+OTF_MT 2   = CoefData/coefficients-MT-2-Uranium.txt
+OTF_MT 102 = CoefData/coefficients-MT-102-Uranium.txt
+
+END_NUCLIDE
 ```
-
-позволяет использовать четыре способа.
-
-| режим | данные | функция |
-|---:|---|---|
-| `0` | температурная таблица | `found_cross_section_from_energy` |
-| `1` | исходное сечение | `doplerBroadr` |
-| `2` | OTF library | `eval_expansion` |
-| `3` | базовая TMS table | `tms_nuclide_majorant` |
-
-Важно: текущая обычная ветвь `collision_controller` вызывает:
-
-```Fortran
-get_sigma(...,0)
-```
-
-и поэтому наличие загруженной OTF-библиотеки не означает ее автоматического использования.
 
 ---
